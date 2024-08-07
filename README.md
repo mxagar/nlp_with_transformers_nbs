@@ -4,6 +4,11 @@ This repository contains the example code from our O'Reilly book [Natural Langua
 
 <img alt="book-cover" height=200 src="images/book_cover.jpg" id="book-cover"/>
 
+:warning: **IMPORTANT notes (by Mikel Sagardia):**
+
+- **I have my personal notes on the book in [`BookNotes.md`](./BookNotes.md).**
+- **The content of this repository (esp. the notebooks) might be altered after my tests.**
+
 ## Getting started
 
 You can run these notebooks on cloud platforms like [Google Colab](https://colab.research.google.com/) or your local machine. Note that most chapters require a GPU to run in a reasonable amount of time, so we recommend one of the cloud platforms as they come pre-installed with CUDA.
