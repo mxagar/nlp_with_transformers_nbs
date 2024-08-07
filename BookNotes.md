@@ -1,10 +1,10 @@
-# Generative Deep Learning: My Notes
+# Natural Language Processing with Transformers: My Notes
 
 These are my notes of the book [Natural Language Processing with Transformers, by Lewis Tunstall, Leandro von Werra and Thomas Wolf (O'Reilly)](https://www.oreilly.com/library/view/natural-language-processing/9781098136789/).
 
 Table of contents:
 
-- [Generative Deep Learning: My Notes](#generative-deep-learning-my-notes)
+- [Natural Language Processing with Transformers: My Notes](#natural-language-processing-with-transformers-my-notes)
   - [Setup](#setup)
   - [Chapter 1: Hello Transformers](#chapter-1-hello-transformers)
   - [Chapter 2: Text Classification](#chapter-2-text-classification)
