@@ -7,7 +7,11 @@ Table of contents:
 - [Natural Language Processing with Transformers: My Notes](#natural-language-processing-with-transformers-my-notes)
   - [Setup](#setup)
   - [Chapter 1: Hello Transformers](#chapter-1-hello-transformers)
+    - [Key points](#key-points)
+    - [List of papers](#list-of-papers)
   - [Chapter 2: Text Classification](#chapter-2-text-classification)
+    - [Key points](#key-points-1)
+    - [List of papers](#list-of-papers-1)
   - [Chapter 3: Transformer Anatomy](#chapter-3-transformer-anatomy)
   - [Chapter 4: Multilingual Named Entity Recognition](#chapter-4-multilingual-named-entity-recognition)
   - [Chapter 5: Text Generation](#chapter-5-text-generation)
@@ -30,6 +34,8 @@ See also:
 I used Google Colab, so no setup was needed apart from the local installations in each notebook.
 
 ## Chapter 1: Hello Transformers
+
+### Key points
 
 - Two major papers that led to the rise of the Transformers in NLP
   - Attention is all you need (Vaswani, 2017): Transformer model
@@ -77,17 +83,28 @@ I used Google Colab, so no setup was needed apart from the local installations i
   - Hub: Models, Datasets, Metrics
   - Libraries: Tokenizers (Rust backend), Transformers (compatible with Pytorch and Tensorflow), Datasets (compatible with Pandas and Numpy), Accelerate (abstraction of training loops for faster deployment).
 
-List of papers:
+### List of papers
 
-- Transformer (Vaswani, 2017)
-- Attention (Bahdanau, 2014)
-- ULMFiT (Howard, 2017)
-- ELMo ()
-- Encoder-decoder ()
-- GPT
-- BERT
+- Encoder-decoder (Cho, 2014): [Learning Phrase Representations using RNN Encoder-Decoder for Statistical Machine Translation](https://arxiv.org/abs/1406.1078)
+- Attention (Bahdanau, 2014): [Neural Machine Translation by Jointly Learning to Align and Translate](https://arxiv.org/abs/1409.0473)
+- Transformer (Vaswani, 2017): [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
+- ULMFiT (Howard, 2018): [Universal Language Model Fine-tuning for Text Classification](https://arxiv.org/abs/1801.06146)
+- ELMo (Peters, 2018): [Deep contextualized word representations](https://arxiv.org/abs/1802.05365)
+- GPT (Radford, 2018): [Improving Language Understanding by Generative Pre-Training](https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf)
+- BERT (Devlin, 2018): [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805)
 
 ## Chapter 2: Text Classification
+
+In this chapter the DistilBERT model is adapted and fine-tuned to perform tweet text classification (6 emotions detected); all the NLP pipeline is thoroughly explained. Recall that DistilBERT is originally trained to predict a masked word in a sequence.
+
+### Key points
+
+
+
+### List of papers
+
+- DistilBERT (Sanh, 2019): [DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter](https://arxiv.org/abs/1910.01108)
+
 
 ## Chapter 3: Transformer Anatomy
 
