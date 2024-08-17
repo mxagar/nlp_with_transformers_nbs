@@ -8,9 +8,11 @@ Table of contents:
   - [Setup](#setup)
   - [Chapter 1: Hello Transformers](#chapter-1-hello-transformers)
     - [Key points](#key-points)
+    - [Notebook](#notebook)
     - [List of papers](#list-of-papers)
   - [Chapter 2: Text Classification](#chapter-2-text-classification)
     - [Key points](#key-points-1)
+    - [Notebook](#notebook-1)
     - [List of papers](#list-of-papers-1)
   - [Chapter 3: Transformer Anatomy](#chapter-3-transformer-anatomy)
   - [Chapter 4: Multilingual Named Entity Recognition](#chapter-4-multilingual-named-entity-recognition)
@@ -83,6 +85,18 @@ I used Google Colab, so no setup was needed apart from the local installations i
   - Hub: Models, Datasets, Metrics
   - Libraries: Tokenizers (Rust backend), Transformers (compatible with Pytorch and Tensorflow), Datasets (compatible with Pandas and Numpy), Accelerate (abstraction of training loops for faster deployment).
 
+### Notebook
+
+[`01_introduction.ipynb`](./01_introduction.ipynb):
+
+- Pipelines
+- Text classification
+- Named Entity Recognition
+- Question Answering
+- Summarization
+- Translation
+- Text Generation
+
 ### List of papers
 
 - Encoder-decoder (Cho, 2014): [Learning Phrase Representations using RNN Encoder-Decoder for Statistical Machine Translation](https://arxiv.org/abs/1406.1078)
@@ -99,7 +113,7 @@ In this chapter the DistilBERT model is adapted and fine-tuned to perform tweet 
 
 ### Key points
 
-
+### Notebook
 
 ### List of papers
 
