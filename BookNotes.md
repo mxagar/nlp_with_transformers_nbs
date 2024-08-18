@@ -6,6 +6,7 @@ Table of contents:
 
 - [Natural Language Processing with Transformers: My Notes](#natural-language-processing-with-transformers-my-notes)
   - [Setup](#setup)
+    - [Colab Setup](#colab-setup)
   - [Chapter 1: Hello Transformers](#chapter-1-hello-transformers)
     - [Key points](#key-points)
     - [Notebook](#notebook)
@@ -34,6 +35,22 @@ See also:
 ## Setup
 
 I used Google Colab, so no setup was needed apart from the local installations in each notebook.
+
+### Colab Setup
+
+The following lines need to be added and modified in each notebook.
+
+```python
+# Uncomment and run this cell if you're on Colab or Kaggle
+!git clone https://github.com/mxagar/nlp_with_transformers_nbs.git
+%cd nlp_with_transformers_nbs
+from install import *
+install_requirements(is_chapter2=True)
+
+# Log in to HF with HF_TOKEN
+from huggingface_hub import notebook_login
+notebook_login()
+```
 
 ## Chapter 1: Hello Transformers
 
@@ -113,7 +130,88 @@ In this chapter the DistilBERT model is adapted and fine-tuned to perform tweet 
 
 ### Key points
 
+The complete chapter is about the implementation of the notebook [`02_classification.ipynb`](./02_classification.ipynb). Unfortunately, the notebook does not work right away due to versioning issues. However, I wrote down the most important insights.
+
+A distilled BERT model is taken (encoding transformer) and a classifier is used with it. This classifier is used to predict 6 emotions in a dataset consisting of tweets. The model is trained in two ways:
+
+- The embedding vectors are used to train a logistic regression model; poor performance.
+- A classifier head is attached to the transformer and all the weights are trained; i.e., we perform fine-tuning. The performance is much better.
+
+Finally, we can push the weights of the trained model to Hugging Face.
+
+Key points:
+
+- DistilBERT: a distilled version of BERT, much smaller (faster), but similar performance.
+- Dataset: `"dair-ai/emotion"`. Six emotions assigned to tweets: `anger, love, fear, joy, sadness, surprise`.
+  - **Note**: I could not download the dataset with the provided versions; I did not spend much time fixing the issue...
+- We can `list_datasets`.
+- We can `load_dataset` given its identifier string.
+  - Then, the dataset is a dictionary which contains the keys `"train"` and `"test"`.
+  - Each row is a dictionary, because the values are columnar, using Apache Arrow.
+  - It is also possible to load CSV or other/similar files using `load_dataset`.
+  - Dataset objects can be converted to Pandas with `.set_format(type="pandas")`.
+- EDA with the dataset
+  - The dataset seems highly imbalanced, but we leave it so.
+  - Tweet length vs emotion is plotted in box plots.
+  - Later, hex-plots are performed with text embeddings for each emotion. The embeddings are mapped to 2D using UMAP.
+- Tokenization and numericalization (`token2id` dictionary)
+  - Character tokenization: split by character
+    - Simplest scheme, smallest vocabulary size.
+    - Problem: words need to be learned from characters.
+  - Word tokenization: split by white spaces.
+    - Usually, stemming and lemmatizaton are also applied to reduce number of tokens.
+    - Much larger vocabulary size.
+    - Unknown tokens/words are mapped to `UNK` token.
+    - Large vocabularies require many weights in the NN
+  - **Subword tokenization**: words are split, combining the best features of the previous two.
+    - We can deal with misspellings
+    - It is learned from a pretraining corpus.
+    - Many subword tokenizers; **WordPiece** used by BERT and DistilBERT.
+  - `AutoTokenizer` provides the correct tokenizer for each model; we can also manually instantiate the proper tokenizer for our model (e.g., `DistilBertTokenizer`).
+  - Common methods of the tokenizer:
+    ```python
+    tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+    encoded_text = tokenizer(text)
+    tokens = tokenizer.convert_is_to_tokens(encoded_text.input_ids)
+    tokenizer.vocab_size # 30k
+    tokenizer.model_max_length # 512, context size
+    ```
+  - Common features of the used subword tokenizer:
+    - Words are split in endings and `##` is appended to the suffixes: `tokenizing -> token, ##izing`.
+    - Special tokens are defined: `[PAD], [UNK] (unknown), [CLS] (start), [SEP] (end), [MASK]`.
+    - We tokenize the entire dataset by padding if sequence is shorter and truncating otherwise.
+    - The output ids have a value `attention_mask`, which is `1` usually, `0` if the token is padded.
+    - To tokenize the entire dataset, we define a `tokenize()` function and `map()` it to the dataset.
+- Approach 1: Transformers as feature extractors
+  - Token embeddings are generated and saved as a dataframe.
+    - The selected embeddings are the hidden states from the transformer; for classification, the hidden states of the first token `[CLS]`.
+    - We can see that the dimension of the output vector is `(batch_size, seq_len, hidden_size)`; the `hidden_size = 768`.
+  - Then, a separate model is trained with the dataframes: logistic regression (choice in the chapter), random forest, XGBoost, etc.
+  - The baseline of the classification is the random `DummyClassifier` from Scikit-Learn. Always do this! It is helpful in imbalanced multi-classes cases.
+  - The result is a score of 63% (F1); the confusion matrix shows the miss-classifications.
+- Approach 2: Add a classification head and fine-tune everything.
+  - A classification head which is differentiable is added; that can be done automatically with `AutoModelForSequenceClassification`, for which we specify `num_labels = 6`.
+  - We train everything with a `Trainer` instance, which takes:
+    - `TrainingArguments`: a class with hyperparameters
+    - A custom defined `compute_metrics` function; it receives a `EvalPrediction` object and returns a dictionary with the metric values.
+    - The train and eval datasets
+    - The `tokenizer`
+  - After training, we can `trainer.predict()`: 91% (F1), much better!
+  - Error analysis: if we pass a validation split to the `predict` method, we get the loss of each observation, thus, we can list the mis-predictions by loss. Then, we perform an error analysis to detect:
+    - Wrong labels.
+    - Quirks of the dataset: spacial characters can lead to wrong classifications, maybe we discover new ways of cleaning the data, etc.
+    - Similarly, we should look at the samples with the lowest losses.
+- Interoperability between frameworks: in some cases the weights of some models are in Pytorch and we'd like to have them in Tensorflow; we can do that using Hugging Face.
+- It is also possible to train with Keras.
+- We can push the weights of the trained model using `trainer.push_to_hub()`.
+- We need to log in to Hugging Face.
+
 ### Notebook
+
+[`02_classification.ipynb`](./02_classification.ipynb)
+
+Unfortunately, the notebook does not work right away due to versioning issues.
+However, I wrote down the most important insights in the section before.
 
 ### List of papers
 
