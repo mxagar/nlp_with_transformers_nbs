@@ -16,6 +16,12 @@ Table of contents:
     - [Notebook](#notebook-1)
     - [List of papers](#list-of-papers-1)
   - [Chapter 3: Transformer Anatomy](#chapter-3-transformer-anatomy)
+    - [Key points](#key-points-2)
+      - [The Encoder](#the-encoder)
+      - [The Decoder](#the-decoder)
+      - [Transformers](#transformers)
+    - [Notebook](#notebook-2)
+    - [List of papers](#list-of-papers-2)
   - [Chapter 4: Multilingual Named Entity Recognition](#chapter-4-multilingual-named-entity-recognition)
   - [Chapter 5: Text Generation](#chapter-5-text-generation)
   - [Chapter 6: Summarization](#chapter-6-summarization)
@@ -217,8 +223,60 @@ However, I wrote down the most important insights in the section before.
 
 - DistilBERT (Sanh, 2019): [DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter](https://arxiv.org/abs/1910.01108)
 
-
 ## Chapter 3: Transformer Anatomy
+
+This chapter explains the architecture of the transformer.
+
+### Key points
+
+The original Transformer architecture (Vaswani et al., 2017) is based on the **encoder-decoder** architecture:
+
+- The encoder converts input sequence (tokens) into embedding vectors, i.e., **hidden states** or **context**.
+- The decoder converts those hidden states into an output sequence.
+
+![Original Transformer Architecture](./assets/transformer_architecture.png)
+![Eencoder-Decoder](./images/chapter03_transformer-encoder-decoder.png)
+
+The original model was used for translation tasks, i.e., from an input sequence in a language to the output sequence in another language. However, the original architecture was quickly split into 3 families:
+
+- Encoder-only: convert input sequence into an embedding that can be used in downstream tasks (classification, etc.).
+  - Examples: BERT, DistilBERT, RoBERTa
+  - Training is done with masked tokens, thus, left and right parts of a token are used to compute the representation, i.e., **bi-directional attention**.
+- Decoder-only: autocomplete a sequence by predicting the most probable next word/token.
+  - Example: GPT
+  - Training is done to predict next word, so only the left pert of a token is used, aka. **causal or autoregressive attention**.
+- Encoder-decoder: from sequence to sequence.
+  - Examples: BART, T5.
+
+Some other features of the architecture:
+
+- The line between the 3 branches is a bit blurry: decoders can also translate and encoders can also summarize!
+- The components of the architecture are quite simple; we have blocks that contain:
+  - Attention layers: similarities of the tokens in the sequence are computed simultaneously (i.e., dot product) and used to weight and sum the embeddings in successive steps.
+  - Feed-forward layers: linear transformations of embeddings.
+  - Positional embeddings/encodings: since the transformed embeddings are continuously the sum of weighted embeddings, we need to add the lost position information somehow; that can be achieved in different ways using positional embeddings.
+  - Normalization
+- Both the encoder and the decoder use similar blocks; however
+  - The encoder transforms embeddings in successive steps to produce the output embeddings.
+  - The decoder takes the output embeddings from the encoder as well as some hidden states and generates a new sequence, which is finished when the `EOS` token (end-of-sentence) emerges.
+
+#### The Encoder
+
+![Transformer Architecture Components](./assets/Transformer_Architecture_Components.png)
+
+#### The Decoder
+
+
+#### Transformers
+
+
+### Notebook
+
+[`03_transformer-anatomy.ipynb`](./03_transformer-anatomy.ipynb)
+
+### List of papers
+
+- Transformer (Vaswani et al., 2017): [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
 
 ## Chapter 4: Multilingual Named Entity Recognition
 
