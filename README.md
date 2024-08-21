@@ -7,6 +7,7 @@ This repository contains the example code from our O'Reilly book [Natural Langua
 :warning: **IMPORTANT notes (by Mikel Sagardia):**
 
 - **I have my personal notes on the book in [`BookNotes.md`](./BookNotes.md).**
+- **I have added new assets to [`assets/`](./assets/).**
 - **The content of this repository (esp. the notebooks) might be altered after my tests.**
 
 ## Getting started
