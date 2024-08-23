@@ -281,7 +281,7 @@ The attention block is called *self-attention block* because all attention/simil
 The output embeddings from each encoder block have the same size as the input embeddings, so the encoder block stack has the function of updating those embeddings. This is the summary of the sizes:
 
 - Input embedding sequence: `(batch_size, seq_len, embed_dim)`.
-- Embeddings being transformed inside a self-attention layer: `(batch_size, seq_len, head_dim = embed_dim/M)`.
+- Embeddings being transformed inside a self-attention layer: `(batch_size, seq_len, head_dim = embed_dim / M)`.
 - Embeddings being transferred from one multi-head block to another: `(batch_size, seq_len, hidden_dim = embed_dim)`.
 
 ![Transformer Architecture Components](./assets/Transformer_Architecture_Components.png)
@@ -298,6 +298,8 @@ In addition to the already mentioned components, each encoder block has also:
   - and the second scales back the embeddings to their original size.
 
 ![Layer normalization](./images/chapter03_layer-norm.png)
+
+Finally, if we want to use the encoder stand-alone, we can add a classification head to it; traditionally, the first token in the output hidden embedding sequence is used as the input for the classification. If don't what to perform classification, we can add the decoder to it.
 
 #### The Decoder
 
