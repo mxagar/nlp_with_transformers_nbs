@@ -19,6 +19,7 @@ Table of contents:
     - [Key points](#key-points-2)
       - [The Encoder](#the-encoder)
       - [The Decoder](#the-decoder)
+      - [Pytorch Implementation](#pytorch-implementation)
       - [Transformers](#transformers)
     - [Notebook](#notebook-2)
     - [List of papers](#list-of-papers-2)
@@ -262,10 +263,46 @@ Some other features of the architecture:
 
 #### The Encoder
 
+Components (in order):
+
+- **Embedding layer**: tokens are converted into vectors; BERT, `embed_dim = 768 (base) or 1024 (large)`.
+- **Positional embeddings/encodings** are added: since the attention layer computes a weighted sum of all tokens in the sequence, we need to encode the position of the tokens.
+- N encoder blocks stacked serially; BERT, N = 12 (base) or 24 (large).  
+  One **encoder block** has:
+    - **Multi-head self attention + Concatenation + Feed-forward**.
+    - Each multi-head attention layer has M self-attention heads; BERT, M = 12 (base) or 16 (large).
+      - Each **(self-)attention head** decomposes the input embedding sequences into M sequences that are later concatenated again to form an updated embedding. After decomposition, hidden embedding sequences are created, upon which self-attention is applied:
+        - We transform the original embedding into Q (query), K (key), V (value). The transformation is performed by a linear/dense layer, which is learned.
+        - Q and K are used to compute a similarity score between token embedding against token embedding (dot product).
+        - The similarity is used as a weight to sum all token embeddings from V to yield a new set of hidden embeddings. These are called **contextualized embeddings**, because they contain context information, i.e., the information of the surrounding embeddings. These updates and context integration solves issues like homonyms or difference in word order between different languages.
+
+The attention block is called *self-attention block* because all attention/similarity weights are computed simultaneously for the entire sequence using only the embeddings themselves.
+
+The output embeddings from each encoder block have the same size as the input embeddings, so the encoder block stack has the function of updating those embeddings. This is the summary of the sizes:
+
+- Input embedding sequence: `(batch_size, seq_len, embed_dim)`.
+- Embeddings being transformed inside a self-attention layer: `(batch_size, seq_len, head_dim = embed_dim/M)`.
+- Embeddings being transferred from one multi-head block to another: `(batch_size, seq_len, hidden_dim = embed_dim)`.
+
 ![Transformer Architecture Components](./assets/Transformer_Architecture_Components.png)
+
+In addition to the already mentioned components, each encoder block has also:
+
+- Layer normalization: inputs/outputs are normalized to mean 0, std 1. This normalization can be pre-layer (original) or post-layer (most common nowadays).
+- Skip connections: previous embeddings (before transformations/updates) are added. These skip/residual connections
+  - Minimize the gradient vanishing problem.
+  - Enable deeper networks.
+  - Improve the optimization of the loss function.
+- Positional feed-forward layer: two linear/dense matrices (followed by a dropout) further transform the embeddings. Usually, 
+  - the first transformation increases 4x the size of the embeddings 
+  - and the second scales back the embeddings to their original size.
+
+![Layer normalization](./images/chapter03_layer-norm.png)
 
 #### The Decoder
 
+
+#### Pytorch Implementation
 
 #### Transformers
 
@@ -277,6 +314,7 @@ Some other features of the architecture:
 ### List of papers
 
 - Transformer (Vaswani et al., 2017): [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
+- ELMo Contextualized embeddings (Peters et al.): [Deep Contextualized Word Representations]()
 
 ## Chapter 4: Multilingual Named Entity Recognition
 
