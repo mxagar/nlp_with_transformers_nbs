@@ -19,7 +19,7 @@ Table of contents:
     - [Key points](#key-points-2)
       - [The Encoder](#the-encoder)
       - [The Decoder](#the-decoder)
-      - [Pytorch Implementation](#pytorch-implementation)
+      - [Pytorch Implementation (Encoder)](#pytorch-implementation-encoder)
       - [Transformers](#transformers)
     - [Notebook](#notebook-2)
     - [List of papers](#list-of-papers-2)
@@ -270,7 +270,7 @@ Components (in order):
   - Learnable positional embeddings (applied in the examples here): a learnable embedding layer is added; this is the most popular approach nowadays if the dataset is large enough.
   - Absolute positional representations (original paper): static patterns consisting of modulates sine/cosine patterns; useful for small datasets.
   - Relative positional representations: the attention mechanism is modified incorporating the relative embedding positions.
-- N encoder blocks stacked serially; BERT, N = 12 (base) or 24 (large).  
+- `Nx` encoder blocks stacked serially; BERT, N = 12 (base) or 24 (large).  
   One **encoder block** has:
     - **Multi-head self attention + Concatenation + Feed-forward**.
     - Each multi-head attention layer has M self-attention heads; BERT, M = 12 (base) or 16 (large).
@@ -309,8 +309,31 @@ Finally, if we want to use the encoder stand-alone, we can add a classification 
 
 #### The Decoder
 
+The original Transformer was conceived for language translation:
 
-#### Pytorch Implementation
+- The Encoder receives the input sequence (e.g., text in English).
+- The Decoder produces an output sequence (e.g., text in French).
+
+However, we can also only train the Decoder, for instance, to generate a new text, which is done predicting the next word iteratively: we take every step the predicted sequence so far and input it to the decoder again. That's why such systems are called **auto-regressive**.
+
+If we consider the full Transformer (Encoder-Decoder, e.g., for language translation), the Decoder takes:
+
+- `K` and `V` from the last Encoder block: these are basically the final hidden states of the processed input sequence (e.g., English text).
+- During training, the embeddings of the target sequence (e.g., French text) shifted one token to the right, i.e., one word/token less.
+  - During inference, the only input target sequence is the first token `<start>`.
+- Positional embeddings of the target sequence, as for the Encoder.
+
+The Decoder consists of `Nx` blocks (the original paper had 6, GPT-3 has 96, LLama-2 has 32/40/80). The building elements of the Decoder are very similar to the Encoder (see original architecture diagram), but attention layers are slightly different:
+
+- It has a **Masked multi-head self-attention layer**: the tokens of the future time-steps are masked, i.e., set to be zero, so that the decoder is able to learn only from the past tokens/embeddings (otherwise, it could cheat). The implementation is very simple, and its carried out in the `scaled_dot_product_attention` function from the implementation below.
+- It has an **Encoder-decoder attention layer**: `Q` is computed from the Decoder embeddings, but `K` and `V` come from the Encoder. This way, the Decoder learns to relate two sequences. Note that:
+  - The `K` and `V` of the final Encoder step/block are used in each Decoder step/block; so `K` and `V` are "frozen", i.e., the same for all steps.
+  - The `Q` is computed in the Decoder for every new step/block.
+  - Unlike in the Encoder, the `Q, K, V` matrices can have different sizes, so the attention scores matrix can be rectangular.
+
+**Teacher forcing** ...
+
+#### Pytorch Implementation (Encoder)
 
 See [`transformer_encoder.py`](./transformer_encoder.py).
 
