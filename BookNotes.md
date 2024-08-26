@@ -19,10 +19,9 @@ Table of contents:
     - [Key points](#key-points-2)
       - [The Encoder](#the-encoder)
       - [The Decoder](#the-decoder)
-      - [Pytorch Implementation (Encoder)](#pytorch-implementation-encoder)
-      - [Transformers](#transformers)
-    - [Notebook](#notebook-2)
+    - [Notebook and Pytorch Implementation (Transformer-Encoder)](#notebook-and-pytorch-implementation-transformer-encoder)
     - [List of papers](#list-of-papers-2)
+      - [Famous Transformer Models](#famous-transformer-models)
   - [Chapter 4: Multilingual Named Entity Recognition](#chapter-4-multilingual-named-entity-recognition)
   - [Chapter 5: Text Generation](#chapter-5-text-generation)
   - [Chapter 6: Summarization](#chapter-6-summarization)
@@ -314,28 +313,32 @@ The original Transformer was conceived for language translation:
 - The Encoder receives the input sequence (e.g., text in English).
 - The Decoder produces an output sequence (e.g., text in French).
 
-However, we can also only train the Decoder, for instance, to generate a new text, which is done predicting the next word iteratively: we take every step the predicted sequence so far and input it to the decoder again. That's why such systems are called **auto-regressive**.
+However, we can also only train the Decoder, for instance, to generate a new text, which is done predicting the next word iteratively: we take every step the so far predicted sequence and input it to the decoder again. That's why such systems are called **auto-regressive**.
 
-If we consider the full Transformer (Encoder-Decoder, e.g., for language translation), the Decoder takes:
+If we consider the **full Transformer** (Encoder-Decoder, e.g., for language EN-FR translation), the Decoder takes:
 
 - `K` and `V` from the last Encoder block: these are basically the final hidden states of the processed input sequence (e.g., English text).
-- During training, the embeddings of the target sequence (e.g., French text) shifted one token to the right, i.e., one word/token less.
+- During training, the embeddings of the target sequence are fed (e.g., French text) shifted one token to the right, i.e., one word/token less and `<start>` as initial token.
   - During inference, the only input target sequence is the first token `<start>`.
 - Positional embeddings of the target sequence, as for the Encoder.
 
 The Decoder consists of `Nx` blocks (the original paper had 6, GPT-3 has 96, LLama-2 has 32/40/80). The building elements of the Decoder are very similar to the Encoder (see original architecture diagram), but attention layers are slightly different:
 
-- It has a **Masked multi-head self-attention layer**: the tokens of the future time-steps are masked, i.e., set to be zero, so that the decoder is able to learn only from the past tokens/embeddings (otherwise, it could cheat). The implementation is very simple, and its carried out in the `scaled_dot_product_attention` function from the implementation below.
+- It has a **Masked multi-head self-attention layer**: the tokens of the future time-steps are masked, i.e., set to be zero (if probabilities, or `-inf` if logits), so that the decoder is able to learn only from the past tokens/embeddings (otherwise, it could cheat). The implementation is very simple, and its carried out in the `scaled_dot_product_attention` function from the implementation below.
 - It has an **Encoder-decoder attention layer**: `Q` is computed from the Decoder embeddings, but `K` and `V` come from the Encoder. This way, the Decoder learns to relate two sequences. Note that:
   - The `K` and `V` of the final Encoder step/block are used in each Decoder step/block; so `K` and `V` are "frozen", i.e., the same for all steps.
-  - The `Q` is computed in the Decoder for every new step/block.
+  - The `Q` is computed in the Decoder for every new step/block; `Q` refers to the sequence generated so far, while `K` and `V` refer to the original sequence.
   - Unlike in the Encoder, the `Q, K, V` matrices can have different sizes, so the attention scores matrix can be rectangular.
 
-**Teacher forcing** ...
+![Decoder](./images/chapter03_decoder-zoom.png)
 
-#### Pytorch Implementation (Encoder)
+Note that in sequence-to-sequence models usually **Teacher forcing** is used, which involves using the actual target output (the ground truth) from the training data as the input to the next time step in the sequence, rather than using the model's own predicted output from the previous time step.
 
-See [`transformer_encoder.py`](./transformer_encoder.py).
+### Notebook and Pytorch Implementation (Transformer-Encoder)
+
+In the following, a simple implementation of the **Transformer-Encoder** is provided: [`transformer_encoder.py`](./transformer_encoder.py). It is based on the code provided in the notebook [`03_transformer-anatomy.ipynb`](./03_transformer-anatomy.ipynb).
+
+For an example implementation of the **Transformer-Decoder**, see [minGPT by Karpathy](https://github.com/karpathy/minGPT).
 
 ```python
 """This is a very simple implementation
@@ -624,17 +627,28 @@ if __name__ == "__main__":
     # torch.Size([1, 3]): (batch_size, num_labels)
 ```
 
-#### Transformers
-
-
-### Notebook
-
-[`03_transformer-anatomy.ipynb`](./03_transformer-anatomy.ipynb)
-
 ### List of papers
 
 - Transformer (Vaswani et al., 2017): [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
 - ELMo Contextualized embeddings (Peters et al.): [Deep Contextualized Word Representations](https://arxiv.org/abs/1802.05365)
+
+#### Famous Transformer Models
+
+- Encoder-only: sequence-to-embeddings.
+  - BERT
+  - DistilBERT
+  - RoBERTa
+  - XLM
+  - XLM-RoBERTa
+- Decoder-only: sequence generation.
+  - GPT 1, 2, 3
+  - Llama 1, 2, 3
+  - Mixtral
+  - Phi
+- Encoder-Decoder: sequence-to-sequence.
+  - BART
+  - T5
+  - Big Bird
 
 ## Chapter 4: Multilingual Named Entity Recognition
 
