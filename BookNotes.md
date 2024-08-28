@@ -21,7 +21,7 @@ Table of contents:
       - [The Decoder](#the-decoder)
     - [Notebook and Pytorch Implementation (Transformer-Encoder)](#notebook-and-pytorch-implementation-transformer-encoder)
     - [List of papers](#list-of-papers-2)
-      - [Famous Transformer Models](#famous-transformer-models)
+      - [Popular Transformer Models](#popular-transformer-models)
   - [Chapter 4: Multilingual Named Entity Recognition](#chapter-4-multilingual-named-entity-recognition)
   - [Chapter 5: Text Generation](#chapter-5-text-generation)
   - [Chapter 6: Summarization](#chapter-6-summarization)
@@ -630,25 +630,42 @@ if __name__ == "__main__":
 ### List of papers
 
 - Transformer (Vaswani et al., 2017): [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
-- ELMo Contextualized embeddings (Peters et al.): [Deep Contextualized Word Representations](https://arxiv.org/abs/1802.05365)
+- ELMo Contextualized embeddings (Peters et al., 2018): [Deep Contextualized Word Representations](https://arxiv.org/abs/1802.05365)
+- GLUE Benchmark (Wang et al., 2018): [GLUE: A Multi-Task Benchmark and Analysis Platform for Natural Language Understanding](https://arxiv.org/abs/1804.07461)
 
-#### Famous Transformer Models
+#### Popular Transformer Models
 
 - Encoder-only: sequence-to-embeddings.
-  - BERT
-  - DistilBERT
-  - RoBERTa
-  - XLM
-  - XLM-RoBERTa
+  - BERT (Devlin et al., 2018 - Google): [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805)
+    - Outperformed GLU: Natural Language Understanding (NLU) benchmark.
+    - Trained with two goals: predict masked word, predict if one text passage follows another.
+  - DistilBERT (Sanh et al., 2019 - HuggingFace): [DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter](https://arxiv.org/abs/1910.01108)
+    - 97% of BERT's performance, but 40% less memory and 60% faster.
+  - RoBERTa (Liu et al., 2019 - Meta/Facebook): [RoBERTa: A Robustly Optimized BERT Pretraining Approach](https://arxiv.org/abs/1907.11692)
+    - Performance of BERT improved by changing the training scheme.
+  - XLM (Lample et al., 2019 - Meta/Facebook): [Cross-lingual Language Model Pretraining](https://arxiv.org/abs/1901.07291)
 - Decoder-only: sequence generation.
-  - GPT 1, 2, 3
-  - Llama 1, 2, 3
-  - Mixtral
-  - Phi
+  - GPT (OpenAI): next word prediction.
+    - GPT-1 (Radford et al., 2018): [Improving Language Understanding by Generative Pre-Training](https://openai.com/index/language-unsupervised/)
+    - GPT-2 (Radford et al., 2019): [Language Models are Unsupervised Multitask Learners](https://openai.com/index/better-language-models/)
+    - GPT-3 (Brown et al., 2020): [Language Models are Few-Shot Learners](https://arxiv.org/abs/2005.14165)
+      - Power laws govern the relation between compute, dataset size, model size and performance.
+      - 175 billion parameters.
+      - Few-shot learning.
+  - Llama (Meta/Facebook)
+    - Llama 1 (Touvron et al., 2023): [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971)
+    - Llama 2 (Touvron et al., 2023): [Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288)
+    - Llama 3 (Dubey et al., 2024): [The Llama 3 Herd of Models](https://arxiv.org/abs/2407.21783)
+  - Mixtral (Jiang et al., 2024 - Mistral): [Mixtral of Experts](https://arxiv.org/abs/2401.04088)
+  - Phi-1 (Gunasekar et al., 2023 - Microsoft): [Textbooks Are All You Need](https://arxiv.org/abs/2306.11644)
 - Encoder-Decoder: sequence-to-sequence.
-  - BART
-  - T5
-  - Big Bird
+  - BART (Lewis et al., 2029 - Meta/Facebook): [BART: Denoising Sequence-to-Sequence Pre-training for Natural Language Generation, Translation, and Comprehension](https://arxiv.org/abs/1910.13461)
+  - T5 (Raffel et al., 2019 - Google): [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer](https://arxiv.org/abs/1910.10683)
+    - Original Transformer architecture.
+    - All tasks framed as text-to-text, even classification is possible by producing a label text.
+  - Big Bird (Zaheer et al., 2020 - Google): [Big Bird: Transformers for Longer Sequences](https://arxiv.org/abs/2007.14062)
+    - Context size increases quadratically memory, because attention is a matrix.
+    - Big Bird uses a sparse attention which scales linearly.
 
 ## Chapter 4: Multilingual Named Entity Recognition
 
