@@ -37,6 +37,8 @@ See also:
 - [mxagar/generative_ai_udacity](https://github.com/mxagar/generative_ai_udacity)
 - [mxagar/generative_ai_book](https://github.com/mxagar/generative_ai_book)
 - [mxagar/nlp_guide](https://github.com/mxagar/nlp_guide)
+- [mxagar/computer_vision_udacity/CVND_Advanced_CV_and_DL.md](https://github.com/mxagar/computer_vision_udacity/blob/main/03_Advanced_CV_and_DL/CVND_Advanced_CV_and_DL.md)
+- [mxagar/deep_learning_udacity/DLND_RNNs.md](https://github.com/mxagar/deep_learning_udacity/blob/main/04_RNN/DLND_RNNs.md)
 
 ## Setup
 
