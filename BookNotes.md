@@ -53,12 +53,14 @@ The following lines need to be added and modified in each notebook.
 !git clone https://github.com/mxagar/nlp_with_transformers_nbs.git
 %cd nlp_with_transformers_nbs
 from install import *
-install_requirements(is_chapter2=True)
+install_requirements(is_chapter2=False) # or other chapters...
 
 # Log in to HF with HF_TOKEN
 from huggingface_hub import notebook_login
 notebook_login()
 ```
+
+Check the [`install.py`](./install.py) file to see what's happening with the `install_requirements` function.
 
 ## Chapter 1: Hello Transformers
 
@@ -670,6 +672,8 @@ if __name__ == "__main__":
     - Big Bird uses a sparse attention which scales linearly.
 
 ## Chapter 4: Multilingual Named Entity Recognition
+
+
 
 ## Chapter 5: Text Generation
 
