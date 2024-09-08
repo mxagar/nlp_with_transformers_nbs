@@ -23,6 +23,9 @@ Table of contents:
     - [List of papers](#list-of-papers-2)
       - [Popular Transformer Models](#popular-transformer-models)
   - [Chapter 4: Multilingual Named Entity Recognition](#chapter-4-multilingual-named-entity-recognition)
+    - [Key points](#key-points-3)
+    - [Notebook](#notebook-2)
+    - [List of papers](#list-of-papers-3)
   - [Chapter 5: Text Generation](#chapter-5-text-generation)
   - [Chapter 6: Summarization](#chapter-6-summarization)
   - [Chapter 7: Question Answering](#chapter-7-question-answering)
@@ -673,6 +676,44 @@ if __name__ == "__main__":
 
 ## Chapter 4: Multilingual Named Entity Recognition
 
+This chapter shows:
+
+- How a head can be manually defined to a transformer-encoder body.
+- Fine-tuning of models for token classification, i.e., NER (Named Entity Recognition)
+- How a multi-lingual backbone can be fine-tuned for a mono-lingual task/dataset, but still works for languages it wasn't trained for.
+
+### Key points
+
+- Definitions
+  - *Zero-shot cross-lingual transfer* = a model which is fine-tuned on one language can be applied to others without further training.
+    - *Zero-shot* also refers to the cases where the training and test/evaluation labels are different.
+  - NER: Named Entity Recognition = detect special names, like
+    - Organization: `ORG`
+    - Person: `PER`
+    - Location: `LOC`
+- **Used dataset: PAN-X**, a subset of XTREME: Cross-lingual transfer evaluation of multilingual encoders; it contains text from Wikipedia articles in many languages.
+  - 7 classes:
+    - `B-ORG`, `I-ORG`: begin and continue organization tokens
+    - `B-PER`, `I-PER`: begin and continue person tokens
+    - `B-LOC`, `I-LOC`: begin and continue location tokens
+    - `0`: token doesn't belong to any entity
+  - Subset of used languages: the ones in Switzerland: German `de`, French `fr`, Italian `it`, English `en`; also, the balance percentages are adjusted to the usage in Switzerland.
+  - We check that the number of entity classes is balanced, too.
+- **Used model: XLM-RoBERTa (XLM-R)**; same architecture as BERT, but training scheme is different. Good choice for multi-lingual NLU tasks (Natural Language Understanding).
+  - The model is pretrained with 100s of languages.
+  - It uses a different tokenizer: SentencePiece (instead of WordPiece).
+    - WordPiece has `[CLS]` and `[SEP]` (start and end), and `##` (to denote broken word parts)
+    - SentencePiece uses `<s>` and `</s>`, and `▁` (to denote preceding white space); it is better suited.
+  - Vocabulary size: 250k (instead of 55k).
+- Tokenizer pipelines consist of these steps
+  - 
+
+### Notebook
+
+### List of papers
+
+- XTREME Dataset (Hu et al., 2020): [XTREME: A Massively Multilingual Multi-task Benchmark for Evaluating Cross-lingual Generalization](https://arxiv.org/abs/2003.11080)
+- XLM-RoBERTa (Conneau et al., 2020): [Unsupervised Cross-lingual Representation Learning at Scale](https://arxiv.org/abs/1911.02116)
 
 
 ## Chapter 5: Text Generation
