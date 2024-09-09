@@ -27,6 +27,9 @@ Table of contents:
     - [Notebook](#notebook-2)
     - [List of papers](#list-of-papers-3)
   - [Chapter 5: Text Generation](#chapter-5-text-generation)
+    - [Key points](#key-points-4)
+    - [Notebook](#notebook-3)
+    - [List of papers and links](#list-of-papers-and-links)
   - [Chapter 6: Summarization](#chapter-6-summarization)
   - [Chapter 7: Question Answering](#chapter-7-question-answering)
   - [Chapter 8: Making Transformers Efficient in Production](#chapter-8-making-transformers-efficient-in-production)
@@ -699,24 +702,162 @@ This chapter shows:
     - `0`: token doesn't belong to any entity
   - Subset of used languages: the ones in Switzerland: German `de`, French `fr`, Italian `it`, English `en`; also, the balance percentages are adjusted to the usage in Switzerland.
   - We check that the number of entity classes is balanced, too.
+  - The initial fine-tuning is performed only for German.
 - **Used model: XLM-RoBERTa (XLM-R)**; same architecture as BERT, but training scheme is different. Good choice for multi-lingual NLU tasks (Natural Language Understanding).
   - The model is pretrained with 100s of languages.
   - It uses a different tokenizer: SentencePiece (instead of WordPiece).
     - WordPiece has `[CLS]` and `[SEP]` (start and end), and `##` (to denote broken word parts)
-    - SentencePiece uses `<s>` and `</s>`, and `▁` (to denote preceding white space); it is better suited.
+    - SentencePiece uses `<s>` and `</s>`, and `▁` (to denote preceding white space); it is better suited to detokenize without ambiguities.
   - Vocabulary size: 250k (instead of 55k).
 - Tokenizer pipelines consist of these steps
-  - 
+  - Normalization
+    - Clean: strip whitespaces, remove accents
+    - Unicode normalization: convert special symbols to unified Unicode
+    - Lowercase
+  - Pretokenization
+    - Split text into smaller objects: usually, words and punctuation
+  - Tokenizer model
+    - Sub-word splitting: this reduces the vocabulary size and the number of out-of-vocabulary tokens; it is also a way of handling misspellings.
+    - This needs to be trained on a corpus.
+    - For token classification, as convention in the chapter, if a word is broken into pieces, only the first part is labeled with the proper NER class, and the rest is labeled as ignored `IGN` (default id -100 in Pytorch). After the inference, it is easy to propagate the first predicted class to the subsequent `IGN` tokens.
+  - Postprocessing
+    - Add special tokens: `[CLS]`, `[SEP]`
+- Model architecture: `BertModel` (body: task agnostic) and `BertForTask` (body + head: task-specific)
+  - In the *sequence classification* architecture from Chapter 2, the first hidden state of the output sequence (`[CLS]`) was taken and passed to alinear layer which mapped to the desired classes. Now, we want to perform a *token classification*, thus, all the output hidden states of the sequence  are passed each to a linear mapping to classify them (7 classes).
+    ![NER Classification Model Architecture](./images/chapter04_ner-architecture.png)
+  - HF Transformers already has classes for that:
+    - `AutoModelFor<Task>`: model class chosen from passed model string.
+    - `<Model>For<Task>`, e.g., **`XLMRobertaForTokenClassification`**: the class necessary here.
+      - XLM-Roberta is in essence the same architecture as BERT, but it was trained with another setting and dataset
+  - However, a class is created maually, for learning purposes; this class implements the head, given the body (XLM-Roberta):
+    ```python
+    import torch.nn as nn
+    from transformers import XLMRobertaConfig
+    from transformers.modeling_outputs import TokenClassifierOutput
+    from transformers.models.roberta.modeling_roberta import RobertaModel
+    from transformers.models.roberta.modeling_roberta import RobertaPreTrainedModel
+
+    # Since inherited from PretrainedModel, we get access to all Transformers utilities!
+    class XLMRobertaForTokenClassification(RobertaPreTrainedModel):
+        # When initialized, standard XLM-R settings are loaded and used
+        config_class = XLMRobertaConfig
+
+        def __init__(self, config):
+            super().__init__(config)
+            self.num_labels = config.num_labels
+            # Load model body
+            # add_pooling_layer=False: ensure all hidden states are returned, not only first
+            self.roberta = RobertaModel(config, add_pooling_layer=False)
+            # Set up token classification head
+            self.dropout = nn.Dropout(config.hidden_dropout_prob)
+            self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+            # Load and initialize weights
+            self.init_weights()
+
+        # One forward pass defined
+        def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, 
+                    labels=None, **kwargs):
+            # Use model body to get encoder representations
+            outputs = self.roberta(input_ids, attention_mask=attention_mask,
+                                  token_type_ids=token_type_ids, **kwargs)
+            # Apply classifier to encoder representation
+            sequence_output = self.dropout(outputs[0])
+            logits = self.classifier(sequence_output)
+            # Calculate losses
+            loss = None
+            if labels is not None:
+                # If we provide labels, loss is computed
+                loss_fct = nn.CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            # Return model output object
+            return TokenClassifierOutput(loss=loss, logits=logits, 
+                                        hidden_states=outputs.hidden_states, 
+                                        attentions=outputs.attentions)
+    ```
+- Special effort is put in tokenization and alignment
+- For evaluation, specific functions are defined using the library `seqeval`
+  - We perform sequence evaluation: all tokens in a seuence must be correct for the sequence to be correct.
+- Training (fine-tuning)
+  - A `TrainingArguments` class is instantiated, as well as a `Trainer`.
+  - Additionally, since we'll push the model to HF
+    - We need to log in to HF allowing git credentials
+    - We need to create a repository in HF (done programmatically)
+  - A data collator is used for the batches: the sequences are padded to the largest sequence in the batch
+  - After training, the resulting fine-tuned model is pushed to HF: [`mxagar/xlm-roberta-base-finetuned-panx-de`](https://huggingface.co/mxagar/xlm-roberta-base-finetuned-panx-de)
+- Error Analysis
+  - Evaluation: confusion matrix
+    - `B-ORG` and `I-ORG` are confused the most.
+  - Look at valiadion samples with the highest loss: sum of all losses for all tokens in the sequence
+    - Realization: some labels are wrong!
+    - PAN-X is a so called *silver standard* (i.e., labeling was automated), vs *gold standard* datasets (i.e., labeling done by humans).
+    - Usually, iterations are done after correcting the labels
+- Cross-lingual transfer
+  - Recall: XLM-Roberta was trained in 100s of langueges, but we fine-tune only for German.
+  - However, the fine-tuned model seems to still work well with unseen languages! This is **zero-shot learning**
+    - The transfer result is usually better for languages within the same family.
+  - F1 for
+    - `de`: 87%
+    - `fr`: 70%
+    - `it`: 65%
+    - `en`: 58%
+  - To see when it makes sense to use zero-shot learning, the model is further fine-tuned with subsets of `fr` dataset of increasing amounts and the F1 is computed
+    - Result: we get the amount of samples required so that fine-tuning is better than cross-lingual transfer with zero-shot learning
+    - This is relevant to decine when to collect and label samples!
+- Finally, `de`+`fr` language splits are concatenated and a model is trained with all the languages; better results are achieved, but not only for `de`+`fr`, aslo for `it` and `en`
+  - Learning: fine-tuning a cross-lingual for multiple languages improves the performance with other languages, specially from the same family
 
 ### Notebook
+
+All the implementation is done in [`04_multilingual-ner.ipynb`](./04_multilingual-ner.ipynb).
 
 ### List of papers
 
 - XTREME Dataset (Hu et al., 2020): [XTREME: A Massively Multilingual Multi-task Benchmark for Evaluating Cross-lingual Generalization](https://arxiv.org/abs/2003.11080)
 - XLM-RoBERTa (Conneau et al., 2020): [Unsupervised Cross-lingual Representation Learning at Scale](https://arxiv.org/abs/1911.02116)
 
-
 ## Chapter 5: Text Generation
+
+This chapter does not deal with the decoder part of the Transformer model; instead, two aspects related to the *next-word* sequence generation are introduced:
+
+- Token search during decoding: greedy vs. beam.
+- Sampling: temperature.
+
+### Key points
+
+- Unexpected feature of the Transformers: they can create text almost undistinguishable from humans.
+- Eventhough Transformers are trained without explicit supervision, they learn to carry out zero-shot tasks
+  - Simple sums
+  - Code generation
+  - Missspelling correction
+  - Translations
+  - etc.
+- However, note that related texts must occur usually naturally in the training set.
+- Decoding: given an input prompt a word/token is generated, which is concatenated to the input prompt, and the next word is generated iteratively until we obtain an `EOS` token or we reach the maximum amount of tokens.
+  - Encoder-Decoder differences:
+    - In the encoder, we input the entire sequence to the model and obtain the output sequence in a single pass
+    - In the decoder, we need at least one forward pass for each output token: that requires more resources!
+    - In the decoder, we have some hyperparameters post-training which affect the generation, related to the search method and the sampling method.
+  - In reality, predicting the next token and extending the input sequence in an autoregressive way is a simplification; the formal method would be to predict a tree of all possible token choices, but that is not feasible in practice.
+  - Two main decoding or selection strategies are used:
+    - **Greedy Search Decoding**: at each step, we select (=decode) the token with the highest probability.
+      - It's easy to implement, but we can use the built-in `generate()` method instead, which offers more options.
+    - **Beam Search Decoding**: 
+- Sampling Methods
+  - **Temperature**
+  - **Top-k**
+  - **Nucleus Sampling or Top-p**
+
+
+
+### Notebook
+
+All the implementation is done in [`05_text-generation.ipynb`](./05_text-generation.ipynb).
+
+### List of papers and links
+
+- GPT-2 (Radford et al., 2019)[Language Models are Unsupervised Multitask Learners ](https://paperswithcode.com/paper/language-models-are-unsupervised-multitask)
+- GPT-2 Code: [`openai/gpt-2`](https://github.com/openai/gpt-2)
+- Karpathy's nanoGPT: [`karpathy/nanoGPT`](https://github.com/karpathy/nanoGPT)
 
 ## Chapter 6: Summarization
 
