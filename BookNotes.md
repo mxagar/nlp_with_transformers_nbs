@@ -820,7 +820,7 @@ All the implementation is done in [`04_multilingual-ner.ipynb`](./04_multilingua
 This chapter does not deal with the decoder part of the Transformer model; instead, two aspects related to the *next-word* sequence generation are introduced:
 
 - Token search during decoding: greedy vs. beam.
-- Sampling: temperature.
+- Sampling: temperature, top-k and top-p.
 
 ### Key points
 
@@ -846,16 +846,54 @@ This chapter does not deal with the decoder part of the Transformer model; inste
       - The more beams we choose, the better the quality, but the computational effort explodes.
       - Beam search sometimes suffers from repetitive generation; one way to avoid that is using n-gram penalty, i.e., we penalize the repetition of n-grams.
       - This is commonly used in summarization and machine translation.
-- Sampling Methods
-  - **Temperature**
-  - **Top-k**
-  - **Nucleus Sampling or Top-p**
-
-
+- Sampling Methods: for any given decoding/next-word-search strategy, we can decide to sample in different ways; factors that affect here:
+  - **Temperature**: we get the token probabilities as output from the generative LLM; if we apply a `softmax` with the inverse of a `Temperature` variable as the exponent, we reshape the token probability distribution (Boltzman distribution):
+    - `T >> 1`: small ps get bigger, large ps smaller -> more homogeneous distribution -> more **creativity / diversity**, because any word/token could be chosen.
+    - `T = 1`: ps are not changed from the original output.
+    - `T << 1`: small ps smaller, large ps larger -> more peaked distribution -> less creativity and more **coherence**, because the most likely words are chosen.
+    - We can decide to apply `T` for any decoding strategy or sampling method: greedy/beam search, top-k/p sampling.
+  - **Top-k**: instead of considering all tokens each with their p (with or without `T`), we reduce it to the `k` most likely ones and select from them using their distributions.
+  - **Nucleus Sampling or Top-p**: instead of making the number `k` of the most likely ones to be considered fixed, we make it dynamic by specifying the cumulated probability threshold from which we cut the less likely tokens off; e.g., `top_k = 0.9`: we consider the first ranking tokens which cumulate up to `p = 0.9`.
+    - We can combine `top_k` and `top_p`: usually the `k` are chosen and the cummulative `p` is applied.
 
 ### Notebook
 
 All the implementation is done in [`05_text-generation.ipynb`](./05_text-generation.ipynb).
+
+Even though many things are shown in the notebook, the practical lines to generate text are the following:
+
+```python
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model_name = "gpt2-xl"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+
+# Input text
+max_length = 128
+input_txt = """In a shocking finding, scientist discovered \
+a herd of unicorns living in a remote, previously unexplored \
+valley, in the Andes Mountains. Even more surprising to the \
+researchers was the fact that the unicorns spoke perfect English.\n\n
+"""
+input_ids = tokenizer(input_txt, return_tensors="pt")["input_ids"].to(device)
+
+# Run generative model
+output = model.generate(
+  input_ids,
+  max_length=max_length,
+  num_beams=5, # Optional, number of beams - otherwise greedy search
+  do_sample=True, # Optional, if we'd like to use top_k/p sampling
+  temperature=2.0, # Optional, if we'd like t o alter the ps
+  top_k=0, # Optional, sampling from k most likely
+  top_p=0.90 # Optional, sampling from most likely that cummulate p=90%
+)
+
+# Decoded text
+print(tokenizer.decode(output[0]))
+```
 
 ### List of papers and links
 
