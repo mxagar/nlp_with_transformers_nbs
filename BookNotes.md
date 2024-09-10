@@ -841,7 +841,11 @@ This chapter does not deal with the decoder part of the Transformer model; inste
   - Two main decoding or selection strategies are used:
     - **Greedy Search Decoding**: at each step, we select (=decode) the token with the highest probability.
       - It's easy to implement, but we can use the built-in `generate()` method instead, which offers more options.
-    - **Beam Search Decoding**: 
+    - **Beam Search Decoding**: we select an integer value for `b = number_beams`, and keep track of the most probable next tokens building a tree of options. The most likely paths/beams are chosen, ranking the beams with their summed log probabilities.
+      - We would take the product of (conditional) probabilities, but since that's too small, we use the equivalent sum of log probabilities.
+      - The more beams we choose, the better the quality, but the computational effort explodes.
+      - Beam search sometimes suffers from repetitive generation; one way to avoid that is using n-gram penalty, i.e., we penalize the repetition of n-grams.
+      - This is commonly used in summarization and machine translation.
 - Sampling Methods
   - **Temperature**
   - **Top-k**
