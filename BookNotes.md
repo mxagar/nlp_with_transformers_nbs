@@ -903,7 +903,56 @@ print(tokenizer.decode(output[0]))
 
 ## Chapter 6: Summarization
 
+- Summarization is classic sequence-to-sequence task: encoder-decoder models are used.
+- Dataset: CNN/DailyMail
+  - 300k pairs of news articles + summaries composed of original bullet points
+  - Summaries are **abstractive**: new sentences.
+    - Not **extractive** summaries: excerpts.
+  - Columns: `article, highlights, id`.
+  - Long articles truncated to 2k characters, due to context size limit (often 1k tokens).
+- Text summarization pipeline
+  - NLTK is used to separate sentences: `nltk.sent_tokenize()`.
+  - A baseline summary is computed by taking the first 3 sentences.
+  - Models compared
+    - T5: encoder-decoder, it is a *universal* transformer, because it was trained to perform 4 text-to-text tasks depending on the prompt:
+      - Translation
+      - Summarization
+      - Semantic similarity computation (a float value is returned as string)
+      - CoLA: Linguistic acceptability (is sentence correct?)
+    - BART: encoder-decoder, trained to reconstruct corrupted outputs
+    - PEGASUS: encoder-decoder, trained to predict masked sentences in multi-sentence texts.
+    - GPTs (decoder) work also! For instance GPT2 produces a summary if we append `TL;DR`. However, the used versions often hallucinate. Note: GPT has not been trained on this task!
+- Metrics for generated text
+  - **BLEU**: related to **precision**, used in **transalation**.
+    - *n-grams* in produced vs. reference text are compared, i.e., number of *n-grams* that appear in the produced text over the number in the reference text (num-produced / num-reference clipped).
+      - *n-gram*: n tokens in a predefined sequence; usually 4-grams are used, i.e., first all 1-grams are compared, then, 2-grams, until 4-grams (i.e., all possible 4-token sequences).
+    - Some heuristics are applied to the score to account for short generations, clipping, etc.
+    - Without heuristics, it's precision.
+    - Limitations: heuristics; synonyms are not considered.
+    - High **precision** is favoured: all possible appropriate words measured.
+  - **ROUGE**: related to **recall**, used in **summarization**.
+    - Equivalent to BLEU, but we measure how many produced n-gram occurrences occur in the reference (num-reference / num-produced).
+    - ROUGE is the recall of the unclipped BLEU precision.
+    - Together with the Precision (BLEU) and Recall (ROUGE) values we can compute the harmonic mean: F1.
+    - Along with ROUGE, the **ROUGE-L** is often computed:
+      - ROUGE-L: average Longest Common Substring (LCS) ratio.
+      - ROUGE-L Sum: LCS over all the summary.
+    - Often, the Confidence Interval (95%) is provided.
+  - Usually, evaluation functions are defined and used all the time, at different stages.
+- The PEGASUS model is evaluated with the CNN/DailyMail dataset; however, note that generating 100 tokens for each sample required 1 million forward passed, thus, 1000 samples are taken only.
+- PEGASUS is fine-tuned with the SAMSUm summarization dataset: dialogues (customer support center) + summaries.
+  - SAMSum summaries are more abstractive.
+  - When using different datasets, it's important to compare their characteristics, e.g., distribution of token length, etc.
+  - A data collator is used: an object which usually stacks inputs and prepares the targets.
+  - Teacher forcing is used: decoder receives input tokens shifted by one.
+  - Gradient accumulation is performed to handle virtual large batches that would not fit in the memory otherwise.
+  - Everything (model, data collator / dataset) is passed to the `Trainer`.
+- After fine-tuning, PEGASUS' metrics are much better.
+- Active research topic: how can we summarize texts which are longer than the context size?
+
 ## Chapter 7: Question Answering
+
+
 
 ## Chapter 8: Making Transformers Efficient in Production
 
