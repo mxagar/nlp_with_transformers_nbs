@@ -31,7 +31,13 @@ Table of contents:
     - [Notebook](#notebook-3)
     - [List of papers and links](#list-of-papers-and-links)
   - [Chapter 6: Summarization](#chapter-6-summarization)
+    - [Key points](#key-points-5)
+    - [Notebook](#notebook-4)
+    - [List of papers and links](#list-of-papers-and-links-1)
   - [Chapter 7: Question Answering](#chapter-7-question-answering)
+    - [Key points](#key-points-6)
+    - [Notebook](#notebook-5)
+    - [List of papers](#list-of-papers-4)
   - [Chapter 8: Making Transformers Efficient in Production](#chapter-8-making-transformers-efficient-in-production)
   - [Chapter 9: Dealing with Few to No Labels](#chapter-9-dealing-with-few-to-no-labels)
   - [Chapter 10: Training Transformers from Scratch](#chapter-10-training-transformers-from-scratch)
@@ -903,6 +909,8 @@ print(tokenizer.decode(output[0]))
 
 ## Chapter 6: Summarization
 
+### Key points
+
 - Summarization is classic sequence-to-sequence task: encoder-decoder models are used.
 - Dataset: CNN/DailyMail
   - 300k pairs of news articles + summaries composed of original bullet points
@@ -950,9 +958,24 @@ print(tokenizer.decode(output[0]))
 - After fine-tuning, PEGASUS' metrics are much better.
 - Active research topic: how can we summarize texts which are longer than the context size?
 
+### Notebook
+
+Notebook: [`06_summarization.ipynb`](./06_summarization.ipynb).
+
+The notebook cannot be run on Google Colab that easily due to out-of-memory issues (T4 GPU).
+
+### List of papers and links
+
+- BLEU (Papineni, 2002): [BLEU: a Method for Automatic Evaluation of Machine Translation](https://aclanthology.org/P02-1040.pdf)
+- ROUGE (Lin, 2004): [ROUGE: A Package for Automatic Evaluation of Summaries](https://aclanthology.org/W04-1013/)
+
 ## Chapter 7: Question Answering
 
+### Key points
 
+### Notebook
+
+### List of papers
 
 ## Chapter 8: Making Transformers Efficient in Production
 
