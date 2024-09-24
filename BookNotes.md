@@ -36,8 +36,9 @@ Table of contents:
     - [List of papers and links](#list-of-papers-and-links-1)
   - [Chapter 7: Question Answering](#chapter-7-question-answering)
     - [Key points](#key-points-6)
+    - [Ideas](#ideas)
     - [Notebook](#notebook-5)
-    - [List of papers](#list-of-papers-4)
+    - [List of papers and links](#list-of-papers-and-links-2)
   - [Chapter 8: Making Transformers Efficient in Production](#chapter-8-making-transformers-efficient-in-production)
   - [Chapter 9: Dealing with Few to No Labels](#chapter-9-dealing-with-few-to-no-labels)
   - [Chapter 10: Training Transformers from Scratch](#chapter-10-training-transformers-from-scratch)
@@ -971,11 +972,118 @@ The notebook cannot be run on Google Colab that easily due to out-of-memory issu
 
 ## Chapter 7: Question Answering
 
+There are many types of QA, e.g.:
+
+- **Extractive** QA: answer is identified in a span of text in a document. This is done here.
+- Abstractive or generative QA (Retrieval Augmente Generation).
+- Community QA: QA pairs generated in forums.
+- Long-form QA: complex paragraph-length answers to open eneded questions like "Why is the sky blue?"
+- ...
+
+In extractive QA, we have two steps:
+
+- Retrieval: first, the documents which contain the answer to the question need to be found. The retrieval can be
+  - Sparse: inverted indices of tokens, often built using TF-IDF or derivates.
+  - Dense: token embeddings; in recent years, semantic embeddings.
+- Reading model: a transformer is often used to understand the text and a token classifier is appended as head to identify the start and end tokens.
+  - Sometimes the retrieved documents need some kind of re-ranking before being passed to the Reader model.
+
+To build a complete system that coordinates both Retriever and Reader models [Haystack](https://haystack.deepset.ai/) is used.
+
 ### Key points
+
+- Dataset: SubjQA: 10k customer reviews in English about products and services in 6 domains: TripAdvisor, Restaurants, Movies, Books, Electronics, Grocery.
+  - Relevant aspect of the dataset: QAs are subjective, i.e., they depend on the personal experience and perception of the users.
+  - The QA items are organized in domains, so it's easier for the retrieval system to look for them.
+  - Used domain: electronics; 2k items in the domain
+    - Few, like in real world.
+    - Thus, best option is to take a transformer which was already pre-trained on QA datasets.
+  - Item properties, i.e., columns:
+    - `title`
+    - `question`
+    - `context`: complete review.
+    - `answers.answer_start`: start character in `context` for the answer.
+    - `answers.text`: answer span; if empty, unanswerable `question`.
+  - Questions are often not grammatically correct.
+  - Compute the distribution of question types: how, what, is, do, does, where, why, was?
+- Other important datasets: 
+  - SQuAD: Stanford Question Answering Dataset, which collects items related to Wikipedia articles; same structure as SubjQA.
+  - NQ: Natural Questions Dataset from Google, fact-seeking questions from Google users; more challenging that SQuAD, replacement for it.
+- *Span classification* (i.e., a specific *token classification*) is performed on the retrieved documents to predict the start and end tokens.
+  ![QA Model Head](./images/chapter07_qa-head.png)
+- **Reader**: Since we have few items (2k), we should pick a model which is already pre-trained in QA datasets like SubjQA or SQuAD; choice `deppset/minilm-uncased-squad2` (fast to train).
+  - Since the model has a context size of 512, we can use the *sliding window* technique, which creates several chunks for the entire context, each connected with the question.
+  - We can activate that with the flag `return_overflowing_tokens` in the tokenizer.
+- The Q and the context are tokenized sequentially one after the other.
+- Both the `pipeline` and the `AutoModelForQuestionAnswering` are tried.
+  - The `AutoModel` returns `QuestionAnsweringModelOutput`, which contains `start_logits` and `end_logits`.
+  - The argmax of `start_logits` and `end_logits` yields the indices of the answer span.
+- To build a complete system that coordinates both **Retriever** and Reader models [Haystack](https://haystack.deepset.ai/) is used.
+
+### Ideas
+
+- Use a QA classifier as an intermmediate step to a RAG?
 
 ### Notebook
 
-### List of papers
+Notebook: [`07_question-answering.ipynb`](./07_question-answering.ipynb).
+
+The notebook deals with the *token classification* model and the complete pipeline which integrates also the document retriever by using [Haystack](https://haystack.deepset.ai/). Here, I only show the *token classification* part:
+
+```python
+import pandas as pd
+from datasets import load_dataset
+from transformers import AutoTokenizer
+import torch
+from transformers import AutoModelForQuestionAnswering
+from transformers import pipeline
+
+# Dataset
+subjqa = load_dataset("subjqa", name="electronics")
+dfs = {split: dset.to_pandas() for split, dset in subjqa.flatten().items()} # train, test, validation
+qa_cols = ["title", "question", "answers.text", "answers.answer_start", "context"]
+
+# Tokenizer
+model_ckpt = "deepset/minilm-uncased-squad2"
+tokenizer = AutoTokenizer.from_pretrained(model_ckpt)
+# Tokenization example
+question = "How much music can this hold?"
+context = """An MP3 is about 1 MB/minute, so about 6000 hours depending on file size."""
+inputs = tokenizer(question, context, return_tensors="pt") # torch.Size([1, 28])
+print(tokenizer.decode(inputs["input_ids"][0]))
+# [CLS] how much music can this hold? [SEP] an mp3 is about 1 mb / minute, so about 6000 hours depending on file size. [SEP]
+
+# Model
+model = AutoModelForQuestionAnswering.from_pretrained(model_ckpt)
+# Model inference
+with torch.no_grad():
+    outputs = model(**inputs) # QuestionAnsweringModelOutput
+start_logits = outputs.start_logits # torch.Size([1, 28])
+end_logits = outputs.end_logits # torch.Size([1, 28])
+# Sample answer extraction
+start_idx = torch.argmax(start_logits)  
+end_idx = torch.argmax(end_logits) + 1  
+answer_span = inputs["input_ids"][0][start_idx:end_idx]
+answer = tokenizer.decode(answer_span)
+print(f"Question: {question}")
+print(f"Answer: {answer}")
+
+# Pipeline
+pipe = pipeline("question-answering", model=model, tokenizer=tokenizer)
+pipe(question=question, context=context, topk=3) # 3 possible answers provided, each with a score.
+# [{'score': 0.2651624381542206, 'start': 38, 'end': 48, 'answer': '6000 hours'},
+# {'score': 0.22082926332950592, 'start': 16, 'end': 48, 'answer': '1 MB/minute, so about 6000 hours'},
+# {'score': 0.10253480076789856, 'start': 16, 'end': 27, 'answer': '1 MB/minute'}]
+
+# Handle unanswerable
+pipe(question="Why is there no data?", context=context, handle_impossible_answer=True)
+# {'score': 0.906840980052948, 'start': 0, 'end': 0, 'answer': ''}
+```
+
+### List of papers and links
+
+- SQuAD Dataset (Rajpurkar, 2016): [SQuAD: 100,000+ Questions for Machine Comprehension of Text](https://arxiv.org/abs/1606.05250)
+- SubjQA Dataset (Bjerva, 2020): [SubjQA: A Dataset for Subjectivity and Review Comprehension](https://arxiv.org/abs/2004.14283)
 
 ## Chapter 8: Making Transformers Efficient in Production
 
