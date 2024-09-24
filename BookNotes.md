@@ -988,6 +988,11 @@ In extractive QA, we have two steps:
 - Reading model: a transformer is often used to understand the text and a token classifier is appended as head to identify the start and end tokens.
   - Sometimes the retrieved documents need some kind of re-ranking before being passed to the Reader model.
 
+These two steps usually need each a seprate module; in addition, we often find these extra components in QA system:
+
+- Document store: the database where the documents are stored and retrieved from.
+- A pipeline: the component that connects and coordinates all the modules or components.
+
 To build a complete system that coordinates both Retriever and Reader models [Haystack](https://haystack.deepset.ai/) is used.
 
 ### Key points
@@ -1019,6 +1024,31 @@ To build a complete system that coordinates both Retriever and Reader models [Ha
   - The `AutoModel` returns `QuestionAnsweringModelOutput`, which contains `start_logits` and `end_logits`.
   - The argmax of `start_logits` and `end_logits` yields the indices of the answer span.
 - To build a complete system that coordinates both **Retriever** and Reader models [Haystack](https://haystack.deepset.ai/) is used.
+  ![Retriever-Reader](./images/chapter07_retriever-reader.png)
+  - Elasticsearch is used as document store: an instance is started and we write JSON documents to it
+  - Elasticsearch allows both sparse and dense retrieval methods; by default a BM25-based retriever is used in Elasticsearch.
+  - For retrieving, the `item_id` is used, to narrow down the documents.
+  - The `top_k` documents obtained have a score.
+- In the Haystack Pipeline, a new dedicated reader is used, not the `AutoModelForQuestionAnswering`. This new reader is a `FARMReader`, a Haystack model that can be fine-tuned and deployed. This model can directly load Transformers models, so the same model string is passed to it: `deppset/minilm-uncased-squad2`.
+  ```python
+  document_store = ElasticsearchDocumentStore(return_embedding=True)
+  bm25_retriever = BM25Retriever(document_store=document_store)
+  reader = FARMReader(model_name_or_path="deepset/minilm-uncased-squad2", ...)
+  pipe = ExtractiveQAPipeline(reader=reader, retriever=bm25_retriever)
+  ```
+- **Retrievers set an upper bound on the performance of any QA system!**
+  - A class `EvalRetrieverPipeline` is created to evaluate the retriever.
+  - **Recall** is used to evaluate rertievers: is teh answer in the returned top-k documents?
+  - The **recall** metric is computed for the BM25 retriever applied to the Elasticsearch document store, for a varied value of `top_k`.
+  - The same is done for a **Dense Passage Retriever (DPR)** (embedding vector similarity search).
+  - Result:
+    - Larger `k` values lead to better recall, but then we provide more documents to the Reader/Generator.
+    - There are no differences in recall between BM25 vs. DPR, while BM25 is faster than DPR.
+  - Caveats:
+    - DPR can be sped up using FAISS
+    - DPR can be improved if fine-tuning is applied. 
+- Summary of QA evaluation metrics
+  ![QA System Metrics](./assets/qa_system_metrics.png)
 
 ### Ideas
 
@@ -1028,7 +1058,7 @@ To build a complete system that coordinates both Retriever and Reader models [Ha
 
 Notebook: [`07_question-answering.ipynb`](./07_question-answering.ipynb).
 
-The notebook deals with the *token classification* model and the complete pipeline which integrates also the document retriever by using [Haystack](https://haystack.deepset.ai/). Here, I only show the *token classification* part:
+The notebook deals with the *token classification* model and the complete pipeline which integrates also the document retriever by using [Haystack](https://haystack.deepset.ai/). Here, I only show the *token classification* part. In the notebook, another token classifier or reader model is used.
 
 ```python
 import pandas as pd
