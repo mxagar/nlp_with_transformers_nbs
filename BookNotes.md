@@ -1044,11 +1044,20 @@ To build a complete system that coordinates both Retriever and Reader models [Ha
   - Result:
     - Larger `k` values lead to better recall, but then we provide more documents to the Reader/Generator.
     - There are no differences in recall between BM25 vs. DPR, while BM25 is faster than DPR.
+    - This is a kind of a hyperparameter tuning to find the most appropriate `k` value.
   - Caveats:
     - DPR can be sped up using FAISS
-    - DPR can be improved if fine-tuning is applied. 
+    - DPR can be improved if fine-tuning is applied.
+- Readers (models that predict answer spans via **token classification**) are evaluated with **Exact Match (EM)** (i.e., if characters in prediction and ground truth match exactly 1, else 0) and F1.
+  - Evaluation results: the results are deceiving; that's to be expected, because the `FARMReader` model is pre-trained for `SQuAD`, but not for `SubjQA`.
+  - Conclusion: fine-tuning is done on `SubjQA`.
 - Summary of QA evaluation metrics
   ![QA System Metrics](./assets/qa_system_metrics.png)
+- Fine-tuning of `FARMReader` using a Haystack `Trainer` improves the scores; however, remember that the upper bound is set by the retriever.
+- Alternative to extrative QA: Retrieval Augmented Generation (RAG) systems.
+- Ideas for improvement:
+  - Knowledge graphs: real world entities in the nodes, relationships in the edges.
+  - Automatic question generation: weakly supervised training of QA models.
 
 ### Ideas
 
