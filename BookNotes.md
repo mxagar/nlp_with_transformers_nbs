@@ -40,6 +40,13 @@ Table of contents:
     - [Notebook](#notebook-5)
     - [List of papers and links](#list-of-papers-and-links-2)
   - [Chapter 8: Making Transformers Efficient in Production](#chapter-8-making-transformers-efficient-in-production)
+    - [Key points](#key-points-7)
+      - [Knowledge Distillation](#knowledge-distillation)
+      - [Quantization](#quantization)
+      - [ONNX](#onnx)
+      - [Weight Pruning](#weight-pruning)
+    - [Notebook](#notebook-6)
+    - [List of papers and links](#list-of-papers-and-links-3)
   - [Chapter 9: Dealing with Few to No Labels](#chapter-9-dealing-with-few-to-no-labels)
   - [Chapter 10: Training Transformers from Scratch](#chapter-10-training-transformers-from-scratch)
   - [Chapter 11: Future Directions](#chapter-11-future-directions)
@@ -817,6 +824,20 @@ This chapter shows:
 
 All the implementation is done in [`04_multilingual-ner.ipynb`](./04_multilingual-ner.ipynb).
 
+There is one issue in the notebook: since the notebook expects to pull/push to an existing repository, we need to create it somehow. We can do that in the notebook as follows:
+
+```python
+from huggingface_hub import HfApi
+
+# Since the repository to push to is not created, we need to create one first!
+api = HfApi()
+# The name of the URL is derived from model_name above, as well as our loging name
+# If we are unsure, we can skip this cell, run the next and we'll get the repo
+# the Trainer is trying to clone -> we need to copy the repo URL slug and use it here!
+# https://huggingface.co/mxagar/xlm-roberta-base-finetuned-panx-de
+api.create_repo(repo_id="mxagar/xlm-roberta-base-finetuned-panx-de", private=False)
+```
+
 ### List of papers
 
 - XTREME Dataset (Hu et al., 2020): [XTREME: A Massively Multilingual Multi-task Benchmark for Evaluating Cross-lingual Generalization](https://arxiv.org/abs/2003.11080)
@@ -1125,6 +1146,129 @@ pipe(question="Why is there no data?", context=context, handle_impossible_answer
 - SubjQA Dataset (Bjerva, 2020): [SubjQA: A Dataset for Subjectivity and Review Comprehension](https://arxiv.org/abs/2004.14283)
 
 ## Chapter 8: Making Transformers Efficient in Production
+
+### Key points
+
+When a model is deployed to production, we need to find a trade-off between three major constrains:
+
+- Model performance: how good is the selected metric and how does it affect to the business?
+- Latency: how fast is it?
+- Memory: how much RAM do we need, does the model fit on the device memory at all?
+
+To tackle the latter 2 (latency and memory) and still have a decent model performance, four techniques/topics are introduced:
+
+- Knowledge Distillation
+- Quantization
+- ONNX
+- Weight Pruning
+
+In the chapter the CLINIC150 dataset is used:
+
+- Intent classification: queries labeled with 150 user intents (buy, sell, etc.) from 10 domains (banking, travel, etc.)
+- 22,500 in-scope samples (with an intent label) and 1,200 out-of-scope samples (with an *out-of-scope* intent).
+- The fine-tuned BERT achieves around a 94% accuracy on the dataset.
+
+In the chapter, different techniques are applied to create deployable models; for each of them, we need to be able to measure the 3 major constrains explained before:
+
+```python
+import numpy as np
+from datasets import load_metric 
+import torch
+from pathlib import Path
+
+accuracy_score = load_metric("accuracy") # assuming balanced dataset
+
+class PerformanceBenchmark:
+    def __init__(self, pipeline, dataset, optim_type="BERT baseline"):
+        self.pipeline = pipeline
+        self.dataset = dataset
+        self.optim_type = optim_type
+        
+  def compute_accuracy(self):
+      preds, labels = [], []
+      for example in self.dataset:
+          pred = self.pipeline(example["text"])[0]["label"]
+          label = example["intent"]
+          preds.append(intents.str2int(pred))
+          labels.append(label)
+      accuracy = accuracy_score.compute(predictions=preds, references=labels)
+      print(f"Accuracy on test set - {accuracy['accuracy']:.3f}")
+      return accuracy
+
+
+  def compute_size(self):
+      state_dict = self.pipeline.model.state_dict()
+      tmp_path = Path("model.pt")
+      torch.save(state_dict, tmp_path)
+      # Calculate size in megabytes
+      size_mb = Path(tmp_path).stat().st_size / (1024 * 1024)
+      # Delete temporary file
+      tmp_path.unlink()
+      print(f"Model size (MB) - {size_mb:.2f}")
+      return {"size_mb": size_mb}
+
+
+  def time_pipeline(self, query="What is the pin number for my account?"):
+      # To simplify, same query used here
+      # In the wild, we should use queries we could expect
+      latencies = []
+      # Warmup
+      for _ in range(10):
+          _ = self.pipeline(query)
+      # Timed run
+      for _ in range(100):
+          start_time = perf_counter()
+          _ = self.pipeline(query)
+          latency = perf_counter() - start_time
+          latencies.append(latency)
+      # Compute run statistics
+      time_avg_ms = 1000 * np.mean(latencies)
+      time_std_ms = 1000 * np.std(latencies)
+      print(f"Average latency (ms) - {time_avg_ms:.2f} +\- {time_std_ms:.2f}")
+      return {"time_avg_ms": time_avg_ms, "time_std_ms": time_std_ms}
+
+    
+    def run_benchmark(self):
+        metrics = {}
+        metrics[self.optim_type] = self.compute_size()
+        metrics[self.optim_type].update(self.time_pipeline())
+        metrics[self.optim_type].update(self.compute_accuracy())
+        return metrics
+```
+
+#### Knowledge Distillation
+
+A smaller **student** model is trained to mimic the behavior of a larger, slower but better prforming **teacher**.
+
+#### Quantization
+
+![Quantization](./images/chapter08_fp32-to-int8.png)
+
+#### ONNX
+
+
+#### Weight Pruning
+
+### Notebook
+
+There is one issue in the notebook: since the notebook expects to pull/push to an existing repository, we need to create it somehow. We can do that in the notebook as follows:
+
+```python
+from huggingface_hub import HfApi
+
+# Since the repository to push to is not created, we need to create one first!
+api = HfApi()
+# The name of the URL is derived from model_name above, as well as our loging name
+# If we are unsure, we can skip this cell, run the next and we'll get the repo
+# the Trainer is trying to clone -> we need to copy the repo URL slug and use it here!
+# https://huggingface.co/mxagar/distilbert-base-uncased-finetuned-clinc
+api.create_repo(repo_id="mxagar/distilbert-base-uncased-finetuned-clinc", private=False)
+```
+
+### List of papers and links
+
+- Model Distillation (Geoffrey Hinton, Oriol Vinyals, Jeff Dean, 2015)[Distilling the Knowledge in a Neural Network](https://arxiv.org/abs/1503.02531)
+  - Model distillation applied to neural networks; popularized by this paper.
 
 ## Chapter 9: Dealing with Few to No Labels
 
