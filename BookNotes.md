@@ -1240,7 +1240,28 @@ class PerformanceBenchmark:
 
 A smaller **student** model is trained to mimic the behavior of a larger, slower but better prforming **teacher**.
 
+- If supervised classification tasks, the loss has at least two components, weighted by a hyperparameter factor `alpha`:
+  - The error due to the class predictio wrt. the ground truth label (as always), i.e., cross-entropy loss (CE): `alpha * L_CE`
+  - Another component is built by comparing the *soft probablities* of the teacher outcome and the student outcome; the Kullback-Leibler (KL) divergence is used to measure the difference: `(1 - alpha) * L_KL`
+    - *Soft probablities* are the logits *softened* by the `T, temperature` factor, which makes the distribution more homogeneous if `T > 1`.
+    - In other words: the student learns to imitate the outcome distribution of the teacher, not only the correct class. 
+    ```
+    p_i = exp(z_i(x/T)) / sum(j=1:N; exp(z_j(x/T)))
+    x: input sequence
+    z_i: logit of class i
+    N: number of classes
+    p_i: probability of class i
+    ```
+    ![Distillation Loss](./images/chapter08_kd.png)
+- In the notebook a `Trainer` is defined in which the two loss components are computed.
+  - The teacher model should be already fine-tuned for best results and it's not optimized anymore.
+  - The student model should be an architecture related to the teacher model, but smaller in size; e.g.: BERT & DistilBERT (40% less parameters).
+  - Hyperparameter-tuning is done with Optuna (`epochs, T, alpha`), which is integrated with the Transformers library; we need to define the hyperparameter spcae in a `hp_space()` function: `trainer.hyperparameter_search(..., hspace_=hs_pace)`
+  - Other classes used: `TrainingArguments`, `AutoModelForSequenceClassification`, `PerformanceBenchmark`.
+
 #### Quantization
+
+
 
 ![Quantization](./images/chapter08_fp32-to-int8.png)
 
@@ -1269,6 +1290,7 @@ api.create_repo(repo_id="mxagar/distilbert-base-uncased-finetuned-clinc", privat
 
 - Model Distillation (Geoffrey Hinton, Oriol Vinyals, Jeff Dean, 2015)[Distilling the Knowledge in a Neural Network](https://arxiv.org/abs/1503.02531)
   - Model distillation applied to neural networks; popularized by this paper.
+- DistilBERT (Victor Sanh, Lysandre Debut, Julien Chaumond, Thomas Wolf, 2019): [DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter](https://arxiv.org/abs/1910.01108)
 
 ## Chapter 9: Dealing with Few to No Labels
 
