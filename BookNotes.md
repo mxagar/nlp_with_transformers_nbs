@@ -1261,14 +1261,83 @@ A smaller **student** model is trained to mimic the behavior of a larger, slower
 
 #### Quantization
 
+Quantization consists in representing the weights with lower precision, i.e., `FP32 -> INT8` (32/8 = 4x bits less, 4x smaller models). The models not only become smaller, but the operations can be done faster (even 100x faster), and the accuracy is sometimes similar.
 
+We can distinguish between *floating point* and *fixed-point* formats:
 
+- Floating-point numbers are represented with *sign, significand, exponent*: `137.035 -> (-1)^0 x 1.37035 x 10^2`. By changing the value of theexponent, the point is moved (hence, "floating point")
+- Fixed-point numbers are common in quantized models: the exponent is used as a fixed scaling factor applied to a B-bit integer.
+
+To discretize or quantize the weights of a model, the floating-point range `[f_min, f_max] = [-0.2, 0.2]` is mapped to a new integer range `[q_min, q_max] = [-128, 127]`:
+
+```
+f = ((f_max - f_min)/(q_max - q_min)) * (q - Z) = S * (q - Z) <-> q = f/S + Z
+f: floating-point weight
+q: discretized weight
+Z: zero point for the q range equivalent to f = 0
+```
 ![Quantization](./images/chapter08_fp32-to-int8.png)
+
+There are readily available functions to perform the conversions.
+
+In deep neural networks, there are 3 main types of quantization:
+
+1. Dynamic quantization (NLP)
+  - Training happens without changes.
+  - Before inference, weight models are converted to `INT8` (often linear layers).
+  - Activations are also quantized, but read/written to memory as floating-point! Hence, dynamic.
+  - It's the easiest method, often usedin NLP.
+  - In Pytorch, it is very easy to use:
+    ```python
+    from torch.quantization import quantize_dynamic
+    model_quantized = quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
+    ```
+2. Static quantization (IoT, CV)
+  - The ideal quantization scheme is pre-computed and integrated beforehand, so there is no dynamic conversion.
+  - It is faster than the dynamic quantization, but more complex: it requires calibration with a representative dataset, while the dynamic doesn't.
+  - The final models are smaller and faster, so often used in CV and IoT devices.
+3. Quantization-aware training
+  - `FP8` values are rounded during training to mimic quantization.
 
 #### ONNX
 
+ONNX standard allows exporting/converting between PyTorch, Tensorflow/Keras and other formats using the ONNX intermediate format.
+
+ONNX models are saved as a graph and their usage/inference can be accelerated with ONNX Runtime:
+
+- Operators are fusioned ina single step.
+- Constant expressions are evaluated at compile time.
+
+ONNX is also well integrated with Transformers:
+
+- It offers the 3 quantization methods as Pytorch.
+- ONNX models are exported viaa simple function.
+- The ONNX model is run using an `InferenceSession`.
+- We need to create our own `OnnxPipeline` and `OnnXPerformanceBenchmark` to mimic the Transformers pipelines, but that's easily done.
 
 #### Weight Pruning
+
+Weight prunning consists in removing the least important weights from the network.
+
+As such, we get sparse matrices, which are more compact (i.e., pruned weights are basically zero-ed). There are ways of storing sparse matrices which allow simultaneously low memory requirements and fast computations; e.g., the *compressed sparse row* is fast for vector-matrix multiplications:
+
+    W = [0, 0, 3; 0, 2, 0; 4, 0, 0]
+      values: non-zero values row-wise: [3, 2, 4]
+      column-indices: indices of values: [2, 1, 0]
+      row-pointers: where each ro starts in values: [0, 1, 2, 3]
+
+The general approach consists in obtaining a score matrix `S` which sets a relevance score for each weight in a matrix `W`; then, the top k percentage of all scores is taken to construct a mask matrix `M`, which is applied element-wise to `W`:
+
+    W = [w_ij]
+    S = [s_ij]
+    M = top(k; S) = [1 if s_ij in top k%, else 0]
+    W_prunned = [w_ij * s_ij]
+
+The easiest method to compute `S` is **magnitude prunning**: `s_ij = abs(w_ij)`. Then, the sparse model is re-trained iteratively until a desired sparsity level is reached.
+
+A more modern approach is **movement prunning**: we learn both `w_ij` and `s_ij` during training.
+
+Transformers doesn't support prunning methods out-of-the-box, but there are libraries for that.
 
 ### Notebook
 
