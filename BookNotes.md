@@ -49,6 +49,13 @@ Table of contents:
     - [List of papers and links](#list-of-papers-and-links-3)
   - [Chapter 9: Dealing with Few to No Labels](#chapter-9-dealing-with-few-to-no-labels)
     - [Key points](#key-points-8)
+      - [Zero-shot learning (no labeled data)](#zero-shot-learning-no-labeled-data)
+      - [Data Augmentation (few labeled data)](#data-augmentation-few-labeled-data)
+    - [Embedding look-up (few labeled data)](#embedding-look-up-few-labeled-data)
+      - [Fine-tuning a transformer (a lot of labeld data)](#fine-tuning-a-transformer-a-lot-of-labeld-data)
+      - [Few-shot learning (few data)](#few-shot-learning-few-data)
+      - [Domain adaptation (a lot of unlabeled data)](#domain-adaptation-a-lot-of-unlabeled-data)
+      - [Advanced methods](#advanced-methods)
     - [Notebook](#notebook-7)
     - [List of papers and links](#list-of-papers-and-links-4)
   - [Chapter 10: Training Transformers from Scratch](#chapter-10-training-transformers-from-scratch)
@@ -1378,13 +1385,14 @@ api.create_repo(repo_id="mxagar/distilbert-base-uncased-finetuned-clinc", privat
 Which techniques can be apply with/without data? (see picture)
 
 - Zero-shot learning (no labeled data): generative/decoder model or a logical inference classifier is used to predict the classes using the model's *common sense*
-- Data Augmentation (few labeled data)
-- Embedding look-up (few labeled data)
-- Fine-tuning model (a lot of labeld data)
-- Few-shot learning (few data)
-- Domain adaptation (a lot of unlabeled data)
-- Unsupervised Data Augmentation (UDA) (a lot of unlabeled data)
-- Uncertainty-aware self-training (a lot of unlabeled data)
+- Data Augmentation (few labeled data): train a classifier (e.g., a naive Bayes with bags-of-words) with augmented samples, i.e., vary labeled samples by perturbing tokens or applying back-translation.
+- Embedding look-up (few labeled data): apply k-nearest neighbor search and classification using the embeddings of the labeled samples.
+- Fine-tuning model (a lot of labeld data): simply finetune a `AutoModelForSequenceClassification` with the labeled data, i.e., we take body + head and train it.
+- Few-shot learning (few data): create prompts with examples (e.g., from labeled data) and request to generate new predictionsfrom the prompt.
+- Domain adaptation (a lot of unlabeled data): train the backbone transformer with unlabeled smaples for masked token prediction (i.e., language modeling); then, fine-tune the domain-adapted transformer with a task-specific head.
+- Advanced methods
+  - Unsupervised Data Augmentation (UDA) (a lot of unlabeled data)
+  - Uncertainty-aware self-training (a lot of unlabeled data)
 
 Notebook/chapter example: a Github issue tagger:
 
@@ -1409,35 +1417,113 @@ A model is trained for each of the six training split slices and for each model 
 
 Once the baseline model is evaluated, the different approaches mentioned before are implemented, to check how they perform compared to the baseline:
 
-- Zero-shot learning (no labeled data)
-  - We can use a decoder model and ask to predict the `[MASK]` in: *"This section was about the topic `[MASK]`."*
-    - There is a pipeline for that: `pipe = pipeline("fill-mask", model="bert-base-uncased")`
-    - We can even add some possible topics in the argument `targets` to choose from.
-  - Even better, there is a pipeline which makes use of models trained on *Natural Language Inference* datasets, like MNLI and [XNLI](https://arxiv.org/abs/1704.05426).
-    - In these datasets, the sample sequences come in pairs (premise and hypothesis) and they are labeled as
-      - `contradiction`: if sequence A (premise) cannot imply B (hypothesis).
-      - `entailment`: if sequence A (premise) implies B (hypothesis).
-      - `neutral`: when neither of the previous applies.
-    - The pipeline for that: `pipe = pipeline("zero-shot-classification")`
-    - The `pipe` is run for all the possible `L = 9` labels (so `L` forward passes are necessary), and the probability of each is obtained.
-    - From the label probabilities, we need to choose multiple labels for each sample; two approaches are tested
-      - Define a threshold `t` and pick all labels above it.
-      - Pick the top `k` labels with the highest scores.
-    - Both methods are tested with varied `t, k`: the micro and macro F1 are computed on the validation set for each `t, k`; best approach is selected: `top_k = 1`.
-    - The baseline model (naive Bayes) underperforms for the macro F1, but with above 64 samples, its micro F1 is better.
-- Data Augmentation (few labeled data)
-  - New trainng examples are created from existing labeled ones by augmenting them, as done in CV
-  - Augmentation techniques
-    - Back translation: translate from source language to another language and then back.
-    - Token perturbations: synonym replacement, word insertion, swap or deletion.
-  - In the notebook/chapter, the `nlpaug` library is used to apply synonym replacements and train a new naive Bayes model; it improves the previous baseline model.
-- Embedding look-up (few labeled data)
-  - We can build a k-neighbors classifier by using the embedding vectors of the samples: we look for the nearest vectors with a label given a sample without a label and predict it by applying a weighted sum.
-- Fine-tuning model (a lot of labeld data)
-- Few-shot learning (few data)
-- Domain adaptation (a lot of unlabeled data)
+#### Zero-shot learning (no labeled data)
+
+- We can use a decoder model and ask to predict the `[MASK]` in: *"This section was about the topic `[MASK]`."*
+  - There is a pipeline for that: `pipe = pipeline("fill-mask", model="bert-base-uncased")`
+  - We can even add some possible topics in the argument `targets` to choose from.
+- Even better, there is a pipeline which makes use of models trained on *Natural Language Inference* datasets, like MNLI and [XNLI](https://arxiv.org/abs/1704.05426).
+  - In these datasets, the sample sequences come in pairs (premise and hypothesis) and they are labeled as
+    - `contradiction`: if sequence A (premise) cannot imply B (hypothesis).
+    - `entailment`: if sequence A (premise) implies B (hypothesis).
+    - `neutral`: when neither of the previous applies.
+  - The pipeline for that: `pipe = pipeline("zero-shot-classification")`
+  - The `pipe` is run for all the possible `L = 9` labels (so `L` forward passes are necessary), and the probability of each is obtained.
+  - From the label probabilities, we need to choose multiple labels for each sample; two approaches are tested
+    - Define a threshold `t` and pick all labels above it.
+    - Pick the top `k` labels with the highest scores.
+  - Both methods are tested with varied `t, k`: the micro and macro F1 are computed on the validation set for each `t, k`; best approach is selected: `top_k = 1`.
+  - The baseline model (naive Bayes) underperforms for the macro F1, but with above 64 samples, its micro F1 is better.
+
+#### Data Augmentation (few labeled data)
+
+- New trainng examples are created from existing labeled ones by augmenting them, as done in CV
+- Augmentation techniques
+  - Back translation: translate from source language to another language and then back.
+  - Token perturbations: synonym replacement, word insertion, swap or deletion.
+- In the notebook/chapter, the `nlpaug` library is used to apply synonym replacements and train a new naive Bayes model; it improves the previous baseline model.
+
+### Embedding look-up (few labeled data)
+
+- We can build a k-neighbors classifier by using the embedding vectors of the samples:
+  - Embed all labelled texts.
+  - Embed the query text, unlabeled.
+  - Perform nearest neighbor search of the query vector over all stored, labeled embeddings.
+  - Aggregate the labels of the nearesdt neighbors: weighted sum, etc.
+- In the notebook/chapter, GPT-2 trained on code is used, because it yeilded good results.
+  - GPT-2 delivers one embedding per token, so mean pooling is done: average vector taken.
+  - An alternative would be `sbert`?
+- FAISS is used for fast vector search
+  - In contrast to inverted indices, FAISS uses dense vectors; these are clustered using k-means, so when we are trying to search for similar vectors, we don't need to compare the query vector against all stored vectors, but first to the cluster centroids and then to the vectors inside the closest cluster.
+    - `n` vectors in databse
+    - `k` clusters
+    - Optimal number of clusters: `k = sqrt(n)`
+  - FAISS can also leverage GPUs and quantize vectors for faster search.
+  - `DatasetDict` has very convenient interfaces to create a FAISS index and search in it: `add_faiss_index(), get_nearest_examples`
+- Aggregation: after the closest/most similar embeddings are found, we need to aggregate their labels
+  - `k` nearest documents; which value should `k` have?
+  - `m` most frequent labels that appear in those `k` nearest documents; which value?
+  - Since we have a labeled validation split, we vary `k` and `m` and select the values which produce the best micro and macro F1 metrics.
+- The embedding approach is slightly worse than the naive Bayes with data augmentation
+
+#### Fine-tuning a transformer (a lot of labeld data)
+
+This consists simply in fine-tuning a body+head transformer, i.e., 
+
+- we instantiate a `AutoModelForSequenceClassification`
+- we create `Trainer` and `TrainingArguments`
+- and we train with the labeled samples (using the slices).
+
+Since the number of samples is very small, we risk overfitting, thus, we need to pass the flag `load_best_model_at_end=True`, which compares the training and validation losses.
+
+Also, the multi-label loss function expects the labels to be floats.
+
+#### Few-shot learning (few data)
+
+Few-shot learning or in-context learning consists in writing a prompt which shows an example of the task and requests to apply the task to new samples.
+
+Example:
+
+```
+Translate from English to German. For instance
+Thank you => Danke
+Hello => Hallo
+Bye =>
+```
+
+We can use the labeled data as examples!
+
+Recall that some models react to some tokens as prompts, e.g., GPT-2 understand `TL;DR` as a prompt for summarization.
+
+#### Domain adaptation (a lot of unlabeled data)
+
+Domain adaptation consists in training the backbone transformer for the **masked token prediction** task, aka. **language modeling**.
+
+We don't need any labeled data, but unlabeled samples for which simply a masked token is predicted; we need:
+
+- `AutoModelForMaskedLM`
+- `DataCollatorForLanguageModeling`: it builds the bridge between dataset and model calls; in its simplest form it concatenates tensors, but here we use it for adding masks to the sequences by a specified percentage (`mlm_probability`).
+
+Once the model is adapted to new new domain, we can train a head for our task, i.e., classification, as done before. The result is slightly better than the simply fine-tuned transfomer.
+
+#### Advanced methods
+
 - Unsupervised Data Augmentation (UDA) (a lot of unlabeled data)
+  - Dataset is suposed to have labeled and unlabeled data.
+  - The model is trained with both labeled and unlabeled samples:
+    - The labeled samples provide the suupervised cross-entropy loss
+    - The unlabeled data is augmented (token perturbation, back-translation) and we define a consistency loss (the original and augmented samples should yield similar predictions).
+    - Both losses are summed during the training.
+  - Remarkable results.
 - Uncertainty-aware self-training (a lot of unlabeled data)
+  - We train a teacher model with labeled data.
+  - The teacher creates pseudo labels for unlabeled data.
+  - A student model is trained with the pseudo labels.
+    - Here, samples are fed several times with dropout active.
+    - The variance in the predictions gives an approximation of the uncertainty.
+    - The uncertainty is used to improve the model.
+  - The student model becomes the teacher of the next iteration.
+  - Remarkable results.
 
 ### Notebook
 
@@ -1448,6 +1534,7 @@ Once the baseline model is evaluated, the different approaches mentioned before 
 - Multi-label dataset handling: [scikit-multilearn](http://scikit.ml/).
 - Natural Language Inference dataset XLNI: (Adina Williams, Nikita Nangia, Samuel R. Bowman, 2017): [A Broad-Coverage Challenge Corpus for Sentence Understanding through Inference](https://arxiv.org/abs/1704.05426).
 - Amit Chaudhari's Blog (2020): [A Visual Survey of Data Augmentation in NLP](https://amitness.com/posts/data-augmentation-for-nlp)
+- FAISS Vector database and search engine (Jeff Johnson, Matthijs Douze, Hervé Jégou, 2917): [Billion-scale similarity search with GPUs](https://arxiv.org/abs/1702.08734)
 
 ## Chapter 10: Training Transformers from Scratch
 
