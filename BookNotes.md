@@ -48,8 +48,16 @@ Table of contents:
     - [Notebook](#notebook-6)
     - [List of papers and links](#list-of-papers-and-links-3)
   - [Chapter 9: Dealing with Few to No Labels](#chapter-9-dealing-with-few-to-no-labels)
+    - [Key points](#key-points-8)
+    - [Notebook](#notebook-7)
+    - [List of papers and links](#list-of-papers-and-links-4)
   - [Chapter 10: Training Transformers from Scratch](#chapter-10-training-transformers-from-scratch)
+    - [Key points](#key-points-9)
+    - [Notebook](#notebook-8)
+    - [List of papers and links](#list-of-papers-and-links-5)
   - [Chapter 11: Future Directions](#chapter-11-future-directions)
+    - [Key points](#key-points-10)
+    - [List of papers and links](#list-of-papers-and-links-6)
 
 See also:
 
@@ -1333,9 +1341,9 @@ The general approach consists in obtaining a score matrix `S` which sets a relev
     M = top(k; S) = [1 if s_ij in top k%, else 0]
     W_prunned = [w_ij * s_ij]
 
-The easiest method to compute `S` is **magnitude prunning**: `s_ij = abs(w_ij)`. Then, the sparse model is re-trained iteratively until a desired sparsity level is reached.
+The easiest method to compute `S` is **magnitude pruning**: `s_ij = abs(w_ij)`. Then, the sparse model is re-trained iteratively until a desired sparsity level is reached.
 
-A more modern approach is **movement prunning**: we learn both `w_ij` and `s_ij` during training.
+A more modern approach is **movement pruning**: we learn both `w_ij` and `s_ij` during training.
 
 Transformers doesn't support prunning methods out-of-the-box, but there are libraries for that.
 
@@ -1357,13 +1365,100 @@ api.create_repo(repo_id="mxagar/distilbert-base-uncased-finetuned-clinc", privat
 
 ### List of papers and links
 
-- Model Distillation (Geoffrey Hinton, Oriol Vinyals, Jeff Dean, 2015)[Distilling the Knowledge in a Neural Network](https://arxiv.org/abs/1503.02531)
+- Model Distillation (Geoffrey Hinton, Oriol Vinyals, Jeff Dean, 2015): [Distilling the Knowledge in a Neural Network](https://arxiv.org/abs/1503.02531)
   - Model distillation applied to neural networks; popularized by this paper.
 - DistilBERT (Victor Sanh, Lysandre Debut, Julien Chaumond, Thomas Wolf, 2019): [DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter](https://arxiv.org/abs/1910.01108)
 
 ## Chapter 9: Dealing with Few to No Labels
 
+### Key points
+
+![Do we have labels?](./images/chapter09_decision-tree.png)
+
+Which techniques can be apply with/without data? (see picture)
+
+- Zero-shot learning (no labeled data): generative/decoder model or a logical inference classifier is used to predict the classes using the model's *common sense*
+- Data Augmentation (few labeled data)
+- Embedding look-up (few labeled data)
+- Fine-tuning model (a lot of labeld data)
+- Few-shot learning (few data)
+- Domain adaptation (a lot of unlabeled data)
+- Unsupervised Data Augmentation (UDA) (a lot of unlabeled data)
+- Uncertainty-aware self-training (a lot of unlabeled data)
+
+Notebook/chapter example: a Github issue tagger:
+
+- Multi-label text classification: several classes possible.
+- 10k issues (texts) in the dataset.
+- Columns: `title, text, labels`.
+- Labels (selection of most relevant and easy done), `L = 9`: `tokenization, new model, model training, usage, pipeline, tensorflow, pytorch, examples, documentation`
+- Unlabeled issues are tagged as `unlabeled` for using them with some techniques!
+- Texts are truncated to 500 tokens (context size), after checking their word-count distribution.
+- Spliting is done using [scikit-multilearn](http://scikit.ml/), which has a `iterative_train_test_split()` function that splits multi-label samples in a balanced way.
+  - Splits stored in a `DatasetDict`: `train, valid, test, unsup`.
+  - Unlabeled samples: 9.5k
+  - Labeled samples: 440; among them only 220 in `train`
+- Similarly, six training slices are created, again, with `iterative_train_test_split()`, to check the effect of increasing training sizes: `8, 16, 32, 64, 128, 220`.
+
+After the labels are cleaned, and the splits and training slices created, a baseline model is trained: Naive Bayes. This model is often used as baseline in NLP problems because it is very robust and quick to train. The multi-label problem is transformed into one-versus-rest and `L = 9` binary classifiers are trained. The texts are transformed into bags-of-words using a `CountVectorizer`.
+
+A model is trained for each of the six training split slices and for each model two metrics are computed with varied slice size:
+
+- Macro F1: average F1 across all classes (because there is a F1 for each class). In other words, all classes are treated equally.
+- Micro F1: F1 for micro Precision and Recall, where these are computed using the total TP, TN, FP, FN. In other words, the number of items per class is taken into account, as if they were weighted. It makes sense to use it when we have high imbalance.
+
+Once the baseline model is evaluated, the different approaches mentioned before are implemented, to check how they perform compared to the baseline:
+
+- Zero-shot learning (no labeled data)
+  - We can use a decoder model and ask to predict the `[MASK]` in: *"This section was about the topic `[MASK]`."*
+    - There is a pipeline for that: `pipe = pipeline("fill-mask", model="bert-base-uncased")`
+    - We can even add some possible topics in the argument `targets` to choose from.
+  - Even better, there is a pipeline which makes use of models trained on *Natural Language Inference* datasets, like MNLI and [XNLI](https://arxiv.org/abs/1704.05426).
+    - In these datasets, the sample sequences come in pairs (premise and hypothesis) and they are labeled as
+      - `contradiction`: if sequence A (premise) cannot imply B (hypothesis).
+      - `entailment`: if sequence A (premise) implies B (hypothesis).
+      - `neutral`: when neither of the previous applies.
+    - The pipeline for that: `pipe = pipeline("zero-shot-classification")`
+    - The `pipe` is run for all the possible `L = 9` labels (so `L` forward passes are necessary), and the probability of each is obtained.
+    - From the label probabilities, we need to choose multiple labels for each sample; two approaches are tested
+      - Define a threshold `t` and pick all labels above it.
+      - Pick the top `k` labels with the highest scores.
+    - Both methods are tested with varied `t, k`: the micro and macro F1 are computed on the validation set for each `t, k`; best approach is selected: `top_k = 1`.
+    - The baseline model (naive Bayes) underperforms for the macro F1, but with above 64 samples, its micro F1 is better.
+- Data Augmentation (few labeled data)
+  - New trainng examples are created from existing labeled ones by augmenting them, as done in CV
+  - Augmentation techniques
+    - Back translation: translate from source language to another language and then back.
+    - Token perturbations: synonym replacement, word insertion, swap or deletion.
+  - In the notebook/chapter, the `nlpaug` library is used to apply synonym replacements and train a new naive Bayes model; it improves the previous baseline model.
+- Embedding look-up (few labeled data)
+  - We can build a k-neighbors classifier by using the embedding vectors of the samples: we look for the nearest vectors with a label given a sample without a label and predict it by applying a weighted sum.
+- Fine-tuning model (a lot of labeld data)
+- Few-shot learning (few data)
+- Domain adaptation (a lot of unlabeled data)
+- Unsupervised Data Augmentation (UDA) (a lot of unlabeled data)
+- Uncertainty-aware self-training (a lot of unlabeled data)
+
+### Notebook
+
+[`09_few-to-no-labels.ipynb`](./09_few-to-no-labels.ipynb)
+
+### List of papers and links
+
+- Multi-label dataset handling: [scikit-multilearn](http://scikit.ml/).
+- Natural Language Inference dataset XLNI: (Adina Williams, Nikita Nangia, Samuel R. Bowman, 2017): [A Broad-Coverage Challenge Corpus for Sentence Understanding through Inference](https://arxiv.org/abs/1704.05426).
+- Amit Chaudhari's Blog (2020): [A Visual Survey of Data Augmentation in NLP](https://amitness.com/posts/data-augmentation-for-nlp)
+
 ## Chapter 10: Training Transformers from Scratch
+
+### Key points
+
+### Notebook
+
+### List of papers and links
 
 ## Chapter 11: Future Directions
 
+### Key points
+
+### List of papers and links
