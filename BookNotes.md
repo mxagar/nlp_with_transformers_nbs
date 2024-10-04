@@ -60,6 +60,9 @@ Table of contents:
     - [List of papers and links](#list-of-papers-and-links-4)
   - [Chapter 10: Training Transformers from Scratch](#chapter-10-training-transformers-from-scratch)
     - [Key points](#key-points-9)
+      - [Collecting and processing a large dataset](#collecting-and-processing-a-large-dataset)
+      - [Training/preparing an ad-hoc tokenizer](#trainingpreparing-an-ad-hoc-tokenizer)
+      - [Training the model on a cluster of GPUs](#training-the-model-on-a-cluster-of-gpus)
     - [Notebook](#notebook-8)
     - [List of papers and links](#list-of-papers-and-links-5)
   - [Chapter 11: Future Directions](#chapter-11-future-directions)
@@ -1540,7 +1543,83 @@ Once the model is adapted to new new domain, we can train a head for our task, i
 
 ### Key points
 
+This chapter builds a code generator based on a GPT-2 model from scratch following these steps:
+
+- Collecting and processing a large dataset.
+- Training/preparing an ad-hoc tokenizer.
+- Training the model on a cluster of GPUs.
+
+Even though the chapter is very interesting, I did not run the notebook, because I don't have the resources for training a transformer from scratch.
+
+#### Collecting and processing a large dataset
+
+The used dataset consists in 50GB files of Python code (200GB uncompressed):
+
+- It can be downloaded using the Github API or from a public Google inventory.
+- Some filtering is done (e.g., remove `__init__.py` files), but most of the code is kept, regardless of its ratings/quality.
+
+Large datasets present several general challenges:
+
+- They really need to be large.
+- The curation process is often semi-automated, so we can find machine-generated labels, translations, etc. These might decrease the quality.
+- Depending on the source, we might introduce biases; e.g.:
+  - GPT: trained on BookCorpus, so bias to romance novels.s
+  - GPT-2: trained on texts from platforms like Reddit, so bias to blog-style language and content.
+- We need to consider Copyright violations.
+
+Big technical issue: We cannot fit 50GB in memory (let alone 200GB), but these is addressed by the Dataset module from the Transformers library:
+
+- Memory mapping: a dataset is cached on disk replicating the structure it would have in RAM and we have a pointer to this file.
+- Streaming: for larger datasets, it is possible to stream them from a URI (HuggingFace, S3, etc.); batches are sent over the network.
+
+After processing, the dataset is added to HuggingFace; HF deals with IO of objects using `git lfs`:
+
+```bash
+huggingface-cli login
+huggingface-cli repo create --type dataset <name>
+git clone https://huggingface.co/datasets/<name>
+...
+git commit -m "..."
+git push
+```
+
+#### Training/preparing an ad-hoc tokenizer
+
+Tokenizer models are not trained with backpropagation on weights, but they are built to find the optimal tokens (i.e., the most frequent ones) given a vocabulary size constraint.
+
+If the domain is very specific (Python code is), we should build our own tokenizer, otherwise, tokens are not efficiently used.
+
+The tokenizer pipeline has 4 steps:
+
+- Normalization: clean, strip HTML, lowercase, etc.
+- Pretokenization: split into words, whitespaces, punctuation, etc.
+- Tokenizer model: the one which is trained; basically, two major approaches exist:
+  - BPE: we start from single characters and merge them progressively if frequent unions appear in the dataset until a user-defined vocabulary size is reached.
+  - Unigram (it works the other way around): a token is built for each word and we start splitting/removing words if their frequency is too low until a user-defined vocabulary size is reached.
+- Post-processing: add special tokens (e.g., EOS)
+
+In the chapter/notebook, a tokenizer model is trained on the dataset from the scratch 2x and checked that it works for the use-case:
+
+- Whitespaces of different sizes are tokenized (Python uses indentantion).
+- All Python keywords are tokenized.
+- Common English words are also tokenized.
+
+Notes:
+
+- Characters are always preserved as tokens, so new words can be tokenized as a sequence of characters.
+- Efficient tokenizers tokenize a sequence of text to output the smallest sequence of tokens possible.
+- Consider that we have as limit the context size, so the token sequence length is a limited resource.
+- We can push to Hugging Face our own tokenizers.
+
+#### Training the model on a cluster of GPUs
+
+
+
 ### Notebook
+
+Notebook: [10_transformers-from-scratch.ipynb](./10_transformers-from-scratch.ipynb).
+
+However, I did not run it on Google Colab, because it would require a lot of resources.
 
 ### List of papers and links
 
