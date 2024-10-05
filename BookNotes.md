@@ -63,10 +63,14 @@ Table of contents:
       - [Collecting and processing a large dataset](#collecting-and-processing-a-large-dataset)
       - [Training/preparing an ad-hoc tokenizer](#trainingpreparing-an-ad-hoc-tokenizer)
       - [Training the model on a cluster of GPUs](#training-the-model-on-a-cluster-of-gpus)
+      - [Some Sizes](#some-sizes)
     - [Notebook](#notebook-8)
     - [List of papers and links](#list-of-papers-and-links-5)
   - [Chapter 11: Future Directions](#chapter-11-future-directions)
     - [Key points](#key-points-10)
+      - [Scaling Laws](#scaling-laws)
+      - [Making Self-Attention More Efficient](#making-self-attention-more-efficient)
+      - [Multi-Modality](#multi-modality)
     - [List of papers and links](#list-of-papers-and-links-6)
 
 See also:
@@ -1613,7 +1617,300 @@ Notes:
 
 #### Training the model on a cluster of GPUs
 
+In this section, basically a training script to be run on a GPU cluster is introduced; the script is very similar to a regular Pytorch script, but it uses the HuggingFace Accelerate library, which makes possible to run the script in a distributed manner with small changes and the use of the `Accelerator` class.
 
+The pre-training of an LLM can be of different forms, in other words, using different pre-training objectives:
+
+- Causal language modeling (for GPT and similar decoder Transformers): we provide the beginning of the code and ask for completion (we ca a token classification head).
+- Masked language modeling (for BERT and simialr encoder Transformers): we provide a text sequence with a masked token which needs to be predicted by the added classification head.
+- Sequence-to-sequence training (for BART, T5 and similar encoder-decoder Transformers): we provide a docstring and ask the model to predict the code for it; this can be achieved by catching the docstrings with regex.
+
+The selected objective is the first one, since a GPT model is trained.
+
+Some notes on the pre-training objectives:
+
+- Masked Language Modeling (MLM) Head: After pre-training, the MLM head can be discarded and replaced with a task-specific head for fine-tuning, depending on the downstream task.
+- Q Values in Decoder Training: In decoder-only models (like GPT), the Q values are derived from the decoder’s own tokens through self-attention. No encoder is involved, so Q, K, and V all come from the decoder.
+- Embedding Input Tokens without an Encoder: In decoder-only models, tokens are embedded using learned token embeddings and positional embeddings, with no need for an encoder to pass additional information. The model relies on self-attention over the generated sequence.
+
+A `IterableDataset` is configured in such a way that samples are contactenated with `EOS` token in between; then the contactenated sequence is chunked in chunks with context size as length. This way, we avoid padding and loose few data due to truncation.
+
+Logging is performed with
+
+- the default Python logger
+- Weights and Biases
+- and Tensorborad.
+
+The training script has these particular features:
+
+- `Accelerator` makes it easy to train in a distributed manner:
+  - `N` workers are launched: each of them in a GPU, and one is the main worker, which distributes the batches from the `Dataloader`
+  - Each worker/GPU has the entire model and receives a batch; then, loss and gradients are computed independently and the weights updated.
+  - When all workers finish their step, all the model weights are averaged and all the worker models consequently updated.
+  - If teh model doesn't fit in a GPU, we need more sophisticated strategies.
+  ![Data Distributed Parallelism](./images/chapter10_ddp.png)
+- Gradient accumulation is performed, i.e., we virtually increase the batch size.
+- `AdamW` is used with a cosine schedule after a linear warming up; parameter values from GPT-3 paper.
+  - We differentiate weights which should have weight decay.
+- We define an `evaluate()` function which measures the **Perplexity** as metric. The **Perplexity** is the **exponential of the cross-entropy loss**
+  - `Perplexity = 1`: model is perfectly confident.
+  - Random guess: `Perplexity ~ Vocabulary size`.
+  - Low perplexity occurs when we have high probabilities, i.e., the model is confident.
+  - High perplexity occurs when we have low probabilities, i.e., model finds the sequence surprising.
+
+In the book, 2 trainings are reported, run on a `a2-megagpu-16g` instance, which is a workstation with 16 A100 GPUs with 40 GB of RAM each:
+
+- The small GPT-2 took 24h of training.
+- The large GPT-2 took 7 days of training.
+
+Both seem to have good results (perplexity), but the large one is the best; however, the ultimate way of evaluating such code generation models is via unit tests, not done in the scope of the book. The BLEU score is not a good alternative for code, for obvious reasons (it is not a good idea to evaluate a code for its n-grams wrt. a reference solution).
+
+In the following, the summary of the training script is provided:
+
+```python
+import logging
+from argparse import Namespace
+
+import torch
+from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data.dataloader import DataLoader
+from torch.utils.data import IterableDataset
+
+import wandb
+
+from datasets import load_dataset
+from transformers import pipeline, set_seed
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
+
+class ConstantLengthDataset(IterableDataset):
+    
+    def __init__(self, tokenizer, dataset, seq_length=1024,
+                 num_of_sequences=1024, chars_per_token=3.6):
+        self.tokenizer = tokenizer
+        self.concat_token_id = tokenizer.eos_token_id
+        self.dataset = dataset
+        self.seq_length = seq_length
+        self.input_characters = seq_length * chars_per_token * num_of_sequences
+    
+    def __iter__(self):
+        iterator = iter(self.dataset)
+        more_examples = True
+        while more_examples:
+            buffer, buffer_len = [], 0
+            while True:
+                if buffer_len >= self.input_characters:
+                    m=f"Buffer full: {buffer_len}>={self.input_characters:.0f}"
+                    print(m)
+                    break
+                try:
+                    m=f"Fill buffer: {buffer_len}<{self.input_characters:.0f}"
+                    print(m)
+                    buffer.append(next(iterator)["content"])
+                    buffer_len += len(buffer[-1])
+                except StopIteration:
+                    iterator = iter(self.dataset)
+
+            all_token_ids = []
+            tokenized_inputs = self.tokenizer(buffer, truncation=False)
+            for tokenized_input in tokenized_inputs['input_ids']:
+                all_token_ids.extend(tokenized_input + [self.concat_token_id])
+            
+            for i in range(0, len(all_token_ids), self.seq_length):
+                input_ids = all_token_ids[i : i + self.seq_length]
+                if len(input_ids) == self.seq_length:
+                    yield torch.tensor(input_ids)
+
+
+def setup_logging(project_name):
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%m/%d/%Y %H:%M:%S", level=logging.INFO, handlers=[
+        logging.FileHandler(f"log/debug_{accelerator.process_index}.log"),
+        logging.StreamHandler()])
+    if accelerator.is_main_process: # We only want to set up logging once
+        wandb.init(project=project_name, config=args)
+        run_name = wandb.run.name
+        tb_writer = SummaryWriter()
+        tb_writer.add_hparams(vars(args), {'0': 0})
+        logger.setLevel(logging.INFO)
+        datasets.utils.logging.set_verbosity_debug()
+        transformers.utils.logging.set_verbosity_info()
+    else:
+        tb_writer = None
+        run_name = ''
+        logger.setLevel(logging.ERROR)
+        datasets.utils.logging.set_verbosity_error()
+        transformers.utils.logging.set_verbosity_error()
+    return logger, tb_writer, run_name
+
+
+def log_metrics(step, metrics):
+    logger.info(f"Step {step}: {metrics}")
+    if accelerator.is_main_process:
+        wandb.log(metrics)
+        [tb_writer.add_scalar(k, v, step) for k, v in metrics.items()]
+
+
+def create_dataloaders(dataset_name):
+    train_data = load_dataset(dataset_name+'-train', split="train",
+                              streaming=True)
+    train_data = train_data.shuffle(buffer_size=args.shuffle_buffer,
+                                    seed=args.seed)
+    valid_data = load_dataset(dataset_name+'-valid', split="validation",
+                              streaming=True)
+    
+    train_dataset = ConstantLengthDataset(tokenizer, train_data,
+                                          seq_length=args.seq_length)
+    valid_dataset = ConstantLengthDataset(tokenizer, valid_data,
+                                          seq_length=args.seq_length)
+    
+    train_dataloader=DataLoader(train_dataset, batch_size=args.train_batch_size)
+    eval_dataloader=DataLoader(valid_dataset, batch_size=args.valid_batch_size)
+    return train_dataloader, eval_dataloader
+
+
+def get_grouped_params(model, no_decay=["bias", "LayerNorm.weight"]):
+    params_with_wd, params_without_wd = [], []
+    for n, p in model.named_parameters():
+        if any(nd in n for nd in no_decay):
+            params_without_wd.append(p)
+        else:
+            params_with_wd.append(p)
+    return [{'params': params_with_wd, 'weight_decay': args.weight_decay},
+            {'params': params_without_wd, 'weight_decay': 0.0}]
+
+
+def evaluate():
+    model.eval()
+    losses = []
+    for step, batch in enumerate(eval_dataloader):
+        with torch.no_grad():
+            outputs = model(batch, labels=batch)
+        loss = outputs.loss.repeat(args.valid_batch_size)
+        losses.append(accelerator.gather(loss))
+        if args.max_eval_steps > 0 and step >= args.max_eval_steps: break
+    loss = torch.mean(torch.cat(losses))
+    try:
+		perplexity = torch.exp(loss)
+	except OverflowError:
+		perplexity = torch.tensor(float("inf"))
+    return loss.item(), perplexity.item()
+
+
+# Commented parameters correspond to the small model
+config = {"train_batch_size": 2, # 12
+          "valid_batch_size": 2, # 12
+          "weight_decay": 0.1,
+          "shuffle_buffer": 1000,
+          "learning_rate": 2e-4, # 5e-4
+          "lr_scheduler_type": "cosine",
+          "num_warmup_steps": 750, # 2000
+          "gradient_accumulation_steps": 16, # 1
+          "max_train_steps": 50000, # 150000
+          "max_eval_steps": -1,
+          "seq_length": 1024,
+          "seed": 1,
+          "save_checkpoint_steps": 50000} # 15000
+
+args = Namespace(**config)
+set_seed(args.seed)
+
+# Accelerator
+accelerator = Accelerator()
+samples_per_step = accelerator.state.num_processes * args.train_batch_size
+
+# Logging
+logger, tb_writer, run_name = setup_logging(project_name.split("/")[1])
+logger.info(accelerator.state)
+
+# Load model and tokenizer
+if accelerator.is_main_process:
+    hf_repo = Repository("./", clone_from=project_name, revision=run_name)
+model = AutoModelForCausalLM.from_pretrained("./", gradient_checkpointing=True)
+tokenizer = AutoTokenizer.from_pretrained("./")
+
+# Load dataset and dataloader
+train_dataloader, eval_dataloader = create_dataloaders(dataset_name)
+
+# Prepare the optimizer and learning rate scheduler
+optimizer = AdamW(get_grouped_params(model), lr=args.learning_rate)
+lr_scheduler = get_scheduler(name=args.lr_scheduler_type, optimizer=optimizer,
+                             num_warmup_steps=args.num_warmup_steps,
+                             num_training_steps=args.max_train_steps,)
+def get_lr():
+    return optimizer.param_groups[0]['lr']
+
+# Prepare everything with our `accelerator` (order of args is not important)
+model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
+    model, optimizer, train_dataloader, eval_dataloader)
+
+# Train model
+model.train()
+completed_steps = 0
+for step, batch in enumerate(train_dataloader, start=1):
+    loss = model(batch, labels=batch).loss
+    log_metrics(step, {'lr': get_lr(), 'samples': step*samples_per_step,
+                       'steps': completed_steps, 'loss/train': loss.item()})
+    loss = loss / args.gradient_accumulation_steps
+    accelerator.backward(loss)
+    if step % args.gradient_accumulation_steps == 0:
+        optimizer.step()
+        lr_scheduler.step()
+        optimizer.zero_grad()
+        completed_steps += 1
+    if step % args.save_checkpoint_steps == 0:
+        logger.info('Evaluating and saving model checkpoint')
+        eval_loss, perplexity = evaluate()
+        log_metrics(step, {'loss/eval': eval_loss, 'perplexity': perplexity})
+        accelerator.wait_for_everyone()
+        unwrapped_model = accelerator.unwrap_model(model)
+        if accelerator.is_main_process:
+            unwrapped_model.save_pretrained("./")
+            hf_repo.push_to_hub(commit_message=f'step {step}')
+        model.train()
+    if completed_steps >= args.max_train_steps:
+        break
+
+# Evaluate and save the last checkpoint
+logger.info('Evaluating and saving model after training')
+eval_loss, perplexity = evaluate()
+log_metrics(step, {'loss/eval': eval_loss, 'perplexity': perplexity})
+accelerator.wait_for_everyone()
+unwrapped_model = accelerator.unwrap_model(model)
+if accelerator.is_main_process:
+    unwrapped_model.save_pretrained("./")
+    hf_repo.push_to_hub(commit_message=f'final model')
+```
+
+#### Some Sizes
+
+| **Model**            | **Context Size** | **Number of Parameters** | **Memory Size (Params x 4)**    | **Tokens Used to Train**    | **Dataset**                        | **Vocabulary Size** | **Embedding Size** |
+|----------------------|------------------|--------------------------|--------------------|-----------------------------|-------------------------------------|---------------------|--------------------|
+| **GPT-1**            | 512 tokens        | 117 million               | ~0.47 GB           | ~5 billion                   | BookCorpus, Wikipedia, etc.         | 40,000              | 768                |
+| **GPT-2**            | 1024 tokens       | 1.5 billion               | ~6 GB              | 40 billion                   | WebText                            | 50,257              | 1024               |
+| **GPT-3**            | 2048 tokens       | 175 billion               | ~700 GB            | 300 billion                  | Diverse internet-scale corpus       | 50,257              | 12,288             |
+| **BERT (Base)**      | 512 tokens        | 110 million               | ~0.44 GB           | 3.3 billion                  | BookCorpus, Wikipedia               | 30,000              | 768                |
+| **T5 (Base)**        | 512 tokens        | 220 million               | ~0.88 GB           | 34 billion                   | Colossal Clean Crawled Corpus (C4)  | 32,000              | 768                |
+| **LLaMA 3.0 (8B)**   | 128k tokens       | 8 billion                 | ~32 GB             | ~15 trillion                 | C4 + Other curated corpora          | ~65,000             | ~4096              |
+| **LLaMA 3.0 (70B)**  | 128k tokens       | 70 billion                | ~280 GB            | ~15 trillion                 | C4 + Other curated corpora          | ~65,000             | ~8192              |
+| **LLaMA 3.1 (405B)** | 128k tokens       | 405 billion               | ~1.62 TB           | ~15.6 trillion               | Multimodal pretraining              | ~65,000             | ~12,288            |
+
+Notes:
+
+- Llama is a decoder Transformer.
+- Memory sizes are displayed without any quantization applied.
+  - We can see that number of B paramneters x 4 = required RAM
+  - If we apply quantization, the model memory requirement can be 4 x smaller than the required (i.e., it coincides with the number of parameters).
+- There are several ways to load a model of > 1TB in memory:
+  - Sharding: large models are split into smaller parts (shards), with each shard loaded into a different GPU or machine in a distributed system.
+  - Gradient and activation checkpointing: During training and inference, only a subset of layers or operations is loaded into memory at a given time. Once their computations are finished, they are offloaded from memory, and the next set is loaded.
+  - On AWS, the p4d instances offer up to 8 NVIDIA A100 GPUs, each with 40 GB of GPU memory, and the instance itself can be equipped with up to 1.1 TB of RAM.
+- GPT-3 Paper (Brown et al., 2020): [Language Models are Few-Shot Learners](https://arxiv.org/abs/2005.14165).
+  - Few/zero-shot learning capabilities start to emerge in the 10-100 Billion parameter range.
+  - GPT-3 and similar models are estimated to cost 4.6 million USD to train.
+  - GPT-1, 2, 3 are essentially the same architecture, but scaled. 
 
 ### Notebook
 
@@ -1623,8 +1920,77 @@ However, I did not run it on Google Colab, because it would require a lot of res
 
 ### List of papers and links
 
+- GPT-3 Paper (Brown et al., 2020): [Language Models are Few-Shot Learners](https://arxiv.org/abs/2005.14165).
+  - Few/zero-shot learning capabilities start to emerge in the 10-100 Billion parameter range.
+  - GPT-3 and similar models are estimated to cost 4.6 million USD to train.
+  - GPT-1, 2, 3 are essentially the same architecture, but scaled. 
+- Codex, basis for Github Copilot (Chen et al., 2021): [Evaluating Large Language Models Trained on Code](https://arxiv.org/abs/2107.03374)
+
 ## Chapter 11: Future Directions
 
 ### Key points
 
+This chapter deals with three main topics:
+
+- Scaling laws: how model performace is related to the model size, among others.
+- Attention mechanism improvement: the straightforward attention is quadratic in the senquence length, which poses a limit; however, there are strategies which linearize that relationship.
+- Multimodal models, i.e., models which deal with other modalities than text (i.e., image, audio, etc.), even combinng them.
+
+#### Scaling Laws
+
+This section introduces the interesting paper [Scaling Laws for Neural Language Models](https://arxiv.org/abs/2001.08361) (Kaplan et al., 2020), which shows, amongst others, the following points:
+
+- Few/zero-shot learning capabilities start to emerge in the 10-100 Billion parameter range.
+- GPT-3 and similar models are estimated to cost 4.6 million USD to train.
+- GPT-1, 2, 3 are essentially the same architecture, but scaled. 
+- There is a power-law relationship between
+  - Loss, `L`
+  - Compute, `C`
+  - Dataset size, `D`
+  - Model size (number of parameters excluding the embedding layers), `N`
+  - For `X = N, C, D`, `L(X) ~ 1/(X^alpha)`, with `alpha in [0.05, 0.095]`
+- Scaling laws have been observed for all modalities.
+- We can use these scaling laws to extrapolate model performance without building them, but theoretically!
+- However, scaling poses its challenges, i.e., we cannot scale ad infinitum:
+  - Infrastructure: maybe there is not enough HW
+  - Cost: maybe the cost is too large
+  - Dataset curation: high-quality large datasets are expensive and difficult to produce, i.e., human effort is a bottleneck, as well as the biases the data would introduce.
+  - Deplyment: there is a HW limit, again, to deploy large models.
+
+#### Making Self-Attention More Efficient
+
+Self-Attention poses a quadratic complexity with respect to the length of the input sequence, which limits the context size (in terms of memory and speed). However, there are some approaches to alleviate that complexity:
+
+- **Sparse Attention**: instead of multiplying sequence against sequence, a sparse pattern is used; there are many sparse patterns: band (diagonal), random, etc.
+- **Linearized Attantion**: the softmax function of the attention layer is approximated with kernels, which makes the operation linear after applying the correct order.
+  - Attention: `A(Q,K,V) = softmax(Q*K^T)*V`
+  - Approximated attention: `A(Q,K,V) = f(Q)*((f(K)^T)*f(V))`, where `f(.)` is a kernel function that maps the input into a higher dimensional space, like `exp()`.
+  - Gemini and other models with large context sizes use advanced attention mechanisms , often linearized. But the exact technique is not published.
+
+#### Multi-Modality
+
+Some popular multi-modal models:
+
+- iGPT (Chen et al., 2020): [Generative Pretraining from Pixels](https://cdn.openai.com/papers/Generative_Pretraining_from_Pixels_V2.pdf)
+  - Autoregressive generation from images, i.e., next pixel predicted given the previous.
+- Vision Transformers (Dosovitskiy et al., 2021): [An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale](https://arxiv.org/abs/2010.11929)
+  - BERT-style transformer for vision/images; it's for the same goal (encoding) and it follows the same structure after the embedding.
+    - Then, we can add heads we want, e.g., classification.
+  - Images are split into patches, and each patch is embedded with a linear projection.
+  - During training, some patches are distorted.
+  - The training objective is to predict the average color of the masked patch.
+  - **It's not better than CNNs in terms of performance, but it scales better.**
+  - Integrated into the Transformers library.
+- TAPAS, Table Parser (herzig et al., 2020): [TaPas: Weakly Supervised Table Parsing via Pre-training](https://aclanthology.org/2020.acl-main.398/)
+  - We can ask questions related to information contained in a table!
+  - Integrated in Transformers.
+- wav2vec 2.0 for Automatic Speech Recognition (ASR) (Baevski et al., 2020): [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations](https://arxiv.org/abs/2006.11477)
+- LXMERT for Visual Question-Answering (VQA): []()
+- LayoutLM: []()
+- DALL-E: []()
+- CLIP: []()
+
 ### List of papers and links
+
+- Scaling laws for LLMs (Kaplan et al., 2020): [Scaling Laws for Neural Language Models](https://arxiv.org/abs/2001.08361)
+
