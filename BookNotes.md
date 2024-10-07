@@ -1985,12 +1985,30 @@ Some popular multi-modal models:
   - We can ask questions related to information contained in a table!
   - Integrated in Transformers.
 - wav2vec 2.0 for Automatic Speech Recognition (ASR) (Baevski et al., 2020): [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations](https://arxiv.org/abs/2006.11477)
-- LXMERT for Visual Question-Answering (VQA): []()
-- LayoutLM: []()
-- DALL-E: []()
-- CLIP: []()
+  - The model is basically a Transformer which has a front CNN layer that encodes the raw audio forms into embeddings.
+  - Two phases are distinguished:
+    - 1. Pre-training: audio encoding is learned in a self-supervised manner: audio parts are masked and the encoder learns to predict them (similar to BERT); additoinally, distractors are also used, not only correct masked labels, and contrastive loss is applied to those distractors. 
+    - 2. Fine-tuning: after the audio encoding has been learned, fine-tuning is performed on labeled data, so the model learnes to map audio to text data.
+  - Soon after the release of wav2vec, the authors published another paper where they show how to train the model without labeled data (i.e., not aligned speech and text data)! They use GANs and cluestering under the hood.
+  - wav2vec has a also a model and a pipeline in HuggingFace Transformers; audio files need to be input in FLAC format.
+  - Note: before ASR (Automatic Speech Recognition) or speech-to-text, we need to run **diarization**, i.e., distinguishing/segmenting different speakers; this is not done by wav2vec!
+- LXMERT for Visual Question-Answering (VQA) (Tan et al., 2019): [LXMERT: Learning Cross-Modality Encoder Representations from Transformers](https://arxiv.org/abs/1908.07490)
+  - ResNets are used to extract visual features; then, Transformers are used to map them to answers of questions.
+- LayoutLM (Xu et al., 2020): [LayoutLM: Pre-training of Text and Layout for Document Image Understanding](https://arxiv.org/abs/1912.13318)
+  - Transformer which receives inputs from 3 modalities: text, image, layout.
+- DALL-E 1 (Ramesh et al., 2021): [Zero-Shot Text-to-Image Generation](https://arxiv.org/abs/2102.12092)
+  - Based on iGPT, GPT architecture is used to generate images from prompts (texts).
+- DALL-E 2 (Ramesh et al., 2022): [Hierarchical Text-Conditional Image Generation with CLIP Latents](https://cdn.openai.com/papers/dall-e-2.pdf)
+- DALL-E 3 (Betker et al., 2023): [Improving Image Generation with Better Captions](https://cdn.openai.com/papers/dall-e-3.pdf)
+- CLIP (Radford et al., 2021): [Learning Transferable Visual Models From Natural Language Supervision](https://arxiv.org/abs/2103.00020)
+  - The model consists of two Transformers, one for encoding images, the other for encoding texts.
+  - It is was trained with 400 million image-caption samples.
+  - The outcome similarity of the image and text embeddings is optimized (dot product); contrastive learning is used (i.e., similarity of wrong pairs is penalized)
+  - Outcome: the model has **zero-shot image classification** capabilities: it can predict the class token of the passed image, even without defining any classes.
+  - Very performant!
 
 ### List of papers and links
 
 - Scaling laws for LLMs (Kaplan et al., 2020): [Scaling Laws for Neural Language Models](https://arxiv.org/abs/2001.08361)
 
+Also, see the references in the previous section about [Multi-Modality](#multi-modality).
