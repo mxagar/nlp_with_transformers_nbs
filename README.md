@@ -282,6 +282,13 @@ However, I wrote down the most important insights in the section before.
 
 This chapter explains the architecture of the transformer.
 
+Also, check my additional notes in [mxagar/generative_ai_book](https://github.com/mxagar/generative_ai_book).
+
+This chapter introduces the same topic, but:
+
+- it focuses on the Encoder part of the Transformer architecture (while the notes from the link focus on the Generator/Decoder part),
+- and it uses Pytorch to build a model (while the notes from the link use Keras).
+
 ### Key points
 
 The original Transformer architecture (Vaswani et al., 2017) is based on the **encoder-decoder** architecture:
