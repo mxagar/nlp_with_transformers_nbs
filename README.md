@@ -10,9 +10,13 @@ Some related repositories of mine:
 
 - My personal notes on the O'Reilly book [Generative Deep Learning, 2nd Edition, by David Foster](https://github.com/mxagar/generative_ai_book)
 - My personal notes on the [Udacity Generative AI Nanodegree](https://github.com/mxagar/generative_ai_udacity)
-- My personal guide on [Hugging Face](https://github.com/mxagar/tool_guides/tree/master/hugging_face)
-- My personal guide on [LangChain](https://github.com/mxagar/tool_guides/tree/master/langchain)
-- Some personal tools for working with [LLMs](https://github.com/mxagar/tool_guides/tree/master/llms)
+- My personal hands-on guide on [Hugging Face](https://github.com/mxagar/tool_guides/tree/master/hugging_face)
+- My personal hands-on guide on [LangChain](https://github.com/mxagar/tool_guides/tree/master/langchain)
+- My personal hands-on guide on *"classical"* approaches in [Natural Language Processing (NLP)](https://github.com/mxagar/nlp_guide) 
+- Some personal notes on tools for working with [Large Language Models (LLMs)](https://github.com/mxagar/tool_guides/tree/master/llms)
+- Some personal notes on the bascis of Deep Learning:
+  - [mxagar/computer_vision_udacity/CVND_Advanced_CV_and_DL.md](https://github.com/mxagar/computer_vision_udacity/blob/main/03_Advanced_CV_and_DL/CVND_Advanced_CV_and_DL.md)
+  - [mxagar/deep_learning_udacity/DLND_RNNs.md](https://github.com/mxagar/deep_learning_udacity/blob/main/04_RNN/DLND_RNNs.md)
 
 Table of contents:
 
@@ -85,15 +89,6 @@ Table of contents:
       - [Multi-Modality](#multi-modality)
     - [List of papers and links](#list-of-papers-and-links-6)
   - [License](#license)
-
-See also:
-
-- [mxagar/tool_guides/hugging_face](https://github.com/mxagar/tool_guides/tree/master/hugging_face)
-- [mxagar/generative_ai_udacity](https://github.com/mxagar/generative_ai_udacity)
-- [mxagar/generative_ai_book](https://github.com/mxagar/generative_ai_book)
-- [mxagar/nlp_guide](https://github.com/mxagar/nlp_guide)
-- [mxagar/computer_vision_udacity/CVND_Advanced_CV_and_DL.md](https://github.com/mxagar/computer_vision_udacity/blob/main/03_Advanced_CV_and_DL/CVND_Advanced_CV_and_DL.md)
-- [mxagar/deep_learning_udacity/DLND_RNNs.md](https://github.com/mxagar/deep_learning_udacity/blob/main/04_RNN/DLND_RNNs.md)
 
 ## Setup
 
