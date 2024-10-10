@@ -297,7 +297,7 @@ The original Transformer architecture (Vaswani et al., 2017) is based on the **e
 - The encoder converts input sequence (tokens) into embedding vectors, i.e., **hidden states** or **context**.
 - The decoder converts those hidden states into an output sequence.
 
-![Original Transformer Architecture](./assets/transformer_architecture.png)
+![Original Transformer Architecture (Vaswani et al., 2017)](./assets/transformer_architecture.png)
 ![Eencoder-Decoder](./images/chapter03_transformer-encoder-decoder.png)
 
 The original model was used for translation tasks, i.e., from an input sequence in a language to the output sequence in another language. However, the original architecture was quickly split into 3 families:
