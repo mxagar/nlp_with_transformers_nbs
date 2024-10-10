@@ -401,7 +401,10 @@ Note that in sequence-to-sequence models usually **Teacher forcing** is used, wh
 
 In the following, a simple implementation of the **Transformer-Encoder** is provided: [`transformer_encoder.py`](./transformer_encoder.py). It is based on the code provided in the notebook [`03_transformer-anatomy.ipynb`](./03_transformer-anatomy.ipynb).
 
-For an example implementation of the **Transformer-Decoder**, see [minGPT by Karpathy](https://github.com/karpathy/minGPT).
+For an example implementation of the **Transformer-Decoder**, see:
+
+- [minGPT by Karpathy](https://github.com/karpathy/minGPT),
+- and also my notes in the repository [mxagar/generative_ai_book](https://github.com/mxagar/generative_ai_book/) (Section/Chapter 9).
 
 ```python
 """This is a very simple implementation
