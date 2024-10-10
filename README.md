@@ -184,6 +184,7 @@ Check the [`install.py`](./install.py) file to see what's happening with the `in
 - ELMo (Peters, 2018): [Deep contextualized word representations](https://arxiv.org/abs/1802.05365)
 - GPT (Radford, 2018): [Improving Language Understanding by Generative Pre-Training](https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf)
 - BERT (Devlin, 2018): [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805)
+- InstructGPT, ChatGPT RLHF (Ouyang et al., 2022): [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155)
 
 ## Chapter 2: Text Classification
 
